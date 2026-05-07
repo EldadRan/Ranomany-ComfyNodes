@@ -1,0 +1,9 @@
+# Index of nodes shipped by this repo. Informational — installation still
+# selects subdirs by name in the consuming Dockerfile.
+
+save_image_no_meta:
+  description: |
+    Save images as PNG without ComfyUI's default workflow-JSON metadata.
+    Embeds only the keys explicitly provided via `extra_metadata` (JSON dict).
+  deps:    []                                # no extra pip packages beyond ComfyUI's
+  version: "0.1.0"
