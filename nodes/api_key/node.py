@@ -113,6 +113,7 @@ class APIKey:
             )
 
         status = _SOURCE_LABELS.get(source, "✅ Found")
+        print(f"[APIKey] {key_name}: {status}")
         return {"ui": {"text": [status]}, "result": (key, status)}
 
 
