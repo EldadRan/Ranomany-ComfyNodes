@@ -109,11 +109,19 @@ def _tensor_and_mask_to_rgba_bytes(image_tensor: torch.Tensor, mask_tensor: torc
     Compose an RGBA PNG for OpenAI's edit mask format.
     OpenAI: alpha=0 means 'edit here', alpha=255 means 'keep'.
     ComfyUI mask: 1=edit-here, 0=keep — so alpha = (1 - mask) * 255.
+    Mask is resized to match the image if their dimensions differ.
     """
     img_arr  = (image_tensor.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)  # H×W×3
     mask_arr = mask_tensor.cpu().numpy()  # H×W (possibly 1×H×W)
     if mask_arr.ndim == 3:
         mask_arr = mask_arr[0]
+
+    img_h, img_w = img_arr.shape[:2]
+    if mask_arr.shape != (img_h, img_w):
+        mask_pil = Image.fromarray((mask_arr * 255).clip(0, 255).astype(np.uint8), mode="L")
+        mask_pil = mask_pil.resize((img_w, img_h), Image.LANCZOS)
+        mask_arr = np.array(mask_pil).astype(np.float32) / 255.0
+
     alpha = ((1.0 - mask_arr) * 255).clip(0, 255).astype(np.uint8)
     rgba  = np.dstack([img_arr, alpha])  # H×W×4
     buf   = io.BytesIO()
