@@ -2,14 +2,12 @@
 GeminiVeo — ComfyUI node for Veo video generation.
 
 Calls the Gemini / Veo API directly (google-genai SDK).
+Outputs raw video bytes as a VIDEO output for wiring to a SaveVideo node.
 
 API key resolution order:
-  1. Value passed via the `api_key` input (or wired from a GeminiAPIKey node)
+  1. Value passed via the `api_key` input (or wired from an API Key node)
   2. GEMINI_API_KEY environment variable
   3. .env file — searched in the node dir, custom_nodes/, and ComfyUI root
-
-Video generation takes 1–3 minutes; the node blocks until complete or timed out.
-The generated MP4 is saved to ComfyUI's output directory and displayed in the UI.
 
 Supports:
   - Text-to-video (prompt only)
@@ -19,16 +17,14 @@ Supports:
 """
 
 import os
-import base64
 import io
 import time
+import tempfile
 import logging
 
 import numpy as np
 from PIL import Image
 import torch
-
-import folder_paths
 
 log = logging.getLogger("GeminiVeo")
 
@@ -40,7 +36,6 @@ VIDEO_MODELS = [
     "veo-3.1-lite-generate-preview",
 ]
 
-# .env search path: node dir → custom_nodes/ → ComfyUI root
 _ENV_RELATIVE_PATHS = [".", "..", "../.."]
 
 
@@ -90,12 +85,16 @@ def _get_client(api_key: str):
 
 
 def _tensor_to_png_bytes(tensor: torch.Tensor) -> bytes:
-    """Convert a single H×W×3 float32 tensor to PNG bytes."""
     arr = (tensor.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
     pil = Image.fromarray(arr)
     buf = io.BytesIO()
     pil.save(buf, format="PNG")
     return buf.getvalue()
+
+
+# VIDEO is a simple dict type carrying a temp filepath — compatible with
+# our own SaveVideo node (and any other node that accepts a filepath dict).
+VIDEO = "VIDEO"
 
 
 class GeminiVeo:
@@ -109,27 +108,27 @@ class GeminiVeo:
                     "default": "",
                     "placeholder": "Describe the video you want to generate…",
                 }),
-                "model":       (VIDEO_MODELS, {"default": DEFAULT_VIDEO_MODEL}),
-                "aspect_ratio":(["16:9", "9:16"], {"default": "16:9"}),
-                "resolution":  (["1080p", "720p", "4k"], {"default": "1080p"}),
+                "model":            (VIDEO_MODELS, {"default": DEFAULT_VIDEO_MODEL}),
+                "aspect_ratio":     (["16:9", "9:16"], {"default": "16:9"}),
+                "resolution":       (["1080p", "720p", "4k"], {"default": "1080p"}),
                 "duration_seconds": ("INT", {"default": 8, "min": 4, "max": 8, "step": 2}),
             },
             "optional": {
-                "first_frame":      ("IMAGE",),
-                "last_frame":       ("IMAGE",),
-                "negative_prompt":  ("STRING", {"multiline": False, "default": ""}),
-                "api_key":          ("STRING", {"default": "", "password": True, "tooltip": "Leave blank to use GEMINI_API_KEY env var or .env file. Wire from a GeminiAPIKey node for shared key management."}),
-                "filename_prefix":  ("STRING", {"default": "veo"}),
-                "max_wait":         ("INT", {"default": 600, "min": 60, "max": 1800, "step": 30}),
-                "poll_interval":    ("INT", {"default": 10, "min": 5,  "max": 60,   "step": 5}),
+                "first_frame":     ("IMAGE",),
+                "last_frame":      ("IMAGE",),
+                "negative_prompt": ("STRING", {"multiline": False, "default": ""}),
+                "api_key":         ("STRING", {"default": "", "password": True,
+                                    "tooltip": "Leave blank to use GEMINI_API_KEY env var or .env file."}),
+                "max_wait":        ("INT", {"default": 600, "min": 60, "max": 1800, "step": 30}),
+                "poll_interval":   ("INT", {"default": 10,  "min": 5,  "max": 60,   "step": 5}),
             },
         }
 
-    RETURN_TYPES  = ("STRING",)
-    RETURN_NAMES  = ("filepath",)
+    RETURN_TYPES  = (VIDEO,)
+    RETURN_NAMES  = ("video",)
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/Gemini"
-    OUTPUT_NODE   = True
+    OUTPUT_NODE   = False
 
     def generate(
         self,
@@ -142,7 +141,6 @@ class GeminiVeo:
         last_frame:       torch.Tensor = None,
         negative_prompt:  str = "",
         api_key:          str = "",
-        filename_prefix:  str = "veo",
         max_wait:         int = 600,
         poll_interval:    int = 10,
     ):
@@ -153,12 +151,11 @@ class GeminiVeo:
 
         client = _get_client(api_key)
 
-        # Convert optional IMAGE tensors to Gemini Image objects
         def _to_gemini_image(tensor):
             if tensor is None:
                 return None
             if tensor.ndim == 4:
-                tensor = tensor[0]  # take first frame from batch
+                tensor = tensor[0]
             return types.Image(
                 image_bytes=_tensor_to_png_bytes(tensor),
                 mime_type="image/png",
@@ -167,7 +164,6 @@ class GeminiVeo:
         first_img = _to_gemini_image(first_frame)
         last_img  = _to_gemini_image(last_frame)
 
-        # Build video config
         video_cfg_kwargs = {
             "aspect_ratio":     aspect_ratio,
             "resolution":       resolution,
@@ -180,7 +176,6 @@ class GeminiVeo:
 
         video_config = types.GenerateVideosConfig(**video_cfg_kwargs)
 
-        # Submit job
         log.info(f"[GeminiVeo] submitting: model={model} res={resolution} dur={duration_seconds}s")
         operation = client.models.generate_videos(
             model=model,
@@ -190,7 +185,6 @@ class GeminiVeo:
         )
         log.info(f"[GeminiVeo] job submitted: {operation.name}")
 
-        # Poll until done
         elapsed = 0
         while not operation.done:
             if elapsed >= max_wait:
@@ -206,7 +200,6 @@ class GeminiVeo:
             except Exception as e:
                 log.warning(f"[GeminiVeo] poll error at {elapsed}s (continuing): {e}")
 
-        # Extract video bytes
         if operation.response is None:
             err = getattr(operation, "error", None)
             msg = (getattr(err, "message", None) or str(err)) if err else \
@@ -234,7 +227,42 @@ class GeminiVeo:
                 "SDK may require explicit file download — check google-genai version."
             )
 
-        # Save to ComfyUI output directory
+        # Write to a temp file — SaveVideo will move it to the output directory
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        tmp.write(video_bytes)
+        tmp.flush()
+        tmp.close()
+        log.info(f"[GeminiVeo] temp video → {tmp.name}")
+
+        return ({"filepath": tmp.name, "mime_type": "video/mp4"},)
+
+
+# ── SaveVideo node ─────────────────────────────────────────────────────────────
+
+import folder_paths
+
+
+class SaveVideo:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video":           (VIDEO,),
+                "filename_prefix": ("STRING", {"default": "video"}),
+            },
+        }
+
+    RETURN_TYPES  = ("STRING",)
+    RETURN_NAMES  = ("filepath",)
+    FUNCTION      = "save"
+    CATEGORY      = "Ranomany"
+    OUTPUT_NODE   = True
+
+    def save(self, video: dict, filename_prefix: str = "video"):
+        import shutil
+
+        src = video["filepath"]
         output_dir = folder_paths.get_output_directory()
         full_output_folder, filename, counter, subfolder, _ = (
             folder_paths.get_save_image_path(filename_prefix, output_dir, 1920, 1080)
@@ -243,10 +271,8 @@ class GeminiVeo:
         out_path  = os.path.join(full_output_folder, file_name)
 
         os.makedirs(full_output_folder, exist_ok=True)
-        with open(out_path, "wb") as f:
-            f.write(video_bytes)
-
-        log.info(f"[GeminiVeo] saved → {out_path}")
+        shutil.copy2(src, out_path)
+        log.info(f"[SaveVideo] saved → {out_path}")
 
         return {
             "ui": {
@@ -257,9 +283,11 @@ class GeminiVeo:
 
 
 NODE_CLASS_MAPPINGS = {
-    "GeminiVeo": GeminiVeo,
+    "GeminiVeo":        GeminiVeo,
+    "RananomySaveVideo": SaveVideo,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "GeminiVeo": "Gemini Veo Generate",
+    "GeminiVeo":        "Gemini Veo Generate",
+    "RananomySaveVideo": "Save Video",
 }

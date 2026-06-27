@@ -31,8 +31,9 @@ gemini_veo:
   description: |
     Generate videos via the Veo API (veo-3.1-generate-preview and variants).
     Accepts optional first-frame and last-frame IMAGE anchors.
-    Saves the output MP4 to ComfyUI's output directory and displays it in the UI.
+    Outputs a VIDEO value — wire to the bundled Save Video node to write the MP4 to disk.
+    Also ships the Save Video node (Category: Ranomany) in the same file.
     Requires GEMINI_API_KEY env var (or pass it via the api_key input).
     Generation takes 1–3 minutes; the node blocks until complete.
   deps:    [google-genai>=1.0.0]
-  version: "0.1.0"
+  version: "0.2.0"

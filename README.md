@@ -11,7 +11,7 @@ Ranomany-ComfyNodes/
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
     ├── gemini_image/            # Image generation / editing via Gemini
-    ├── gemini_veo/              # Video generation via Veo
+    ├── gemini_veo/              # Video generation via Veo + Save Video node
     └── save_image_no_meta/      # Save PNG without workflow metadata
 ```
 
@@ -139,7 +139,7 @@ Generate images from text, or edit/compose existing images using the Gemini mult
 
 ### `gemini_veo` — Gemini Veo Generate
 
-Generate videos using Google's Veo model. The node blocks until generation completes (typically 1–3 minutes), then saves the MP4 to ComfyUI's output directory and shows it in the UI.
+Generate videos using Google's Veo model. The node blocks until generation completes (typically 1–3 minutes), then outputs a `VIDEO` value that you wire to a **Save Video** node.
 
 **Category:** `Ranomany/Gemini`
 **Dependencies:** `google-genai>=1.0.0`
@@ -152,23 +152,24 @@ Generate videos using Google's Veo model. The node blocks until generation compl
 | `model` | dropdown | `veo-3.1-generate-preview` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview` |
 | `aspect_ratio` | dropdown | `16:9` | `16:9` or `9:16` |
 | `resolution` | dropdown | `1080p` | `720p`, `1080p`, or `4k` (Lite model does not support `4k`) |
-| `duration_seconds` | INT | `8` | `4`, `6`, or `8` — Veo locks 1080p and 4k to 8 s; 720p allows shorter durations |
+| `duration_seconds` | INT | `8` | `4` or `8` |
 | `first_frame` | IMAGE | *(optional)* | Anchor the first frame of the video to this image |
 | `last_frame` | IMAGE | *(optional)* | Anchor the last frame of the video to this image |
 | `negative_prompt` | STRING | *(optional)* | Things to avoid in the output (e.g. `blur, low quality, distorted faces`) |
 | `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
-| `filename_prefix` | STRING | `veo` | Prefix for the saved MP4 filename |
 | `max_wait` | INT | `600` | Seconds before the node gives up (60–1800) |
 | `poll_interval` | INT | `10` | Seconds between status polls (5–60) |
 
 #### Outputs
 
-This is an **output node** — it saves the MP4 to `ComfyUI/output/` and displays it in the UI. It has no tensor output to wire to other nodes.
+| Output | Type | Description |
+|---|---|---|
+| `video` | VIDEO | Video data (filepath dict). Wire to **Save Video** to write the MP4 to disk. |
 
 #### Example workflow
 
 ```
-[API Key] key_name=GEMINI_API_KEY ──api_key──► [Gemini Veo Generate]
+[API Key] key_name=GEMINI_API_KEY ──api_key──► [Gemini Veo Generate] ──video──► [Save Video]
                     prompt           = "A drone slowly flies over a misty mountain forest at dawn, cinematic"
                     model            = veo-3.1-generate-preview
                     aspect_ratio     = 16:9
@@ -178,9 +179,27 @@ This is an **output node** — it saves the MP4 to `ComfyUI/output/` and display
 
 **Image-to-video:**
 ```
-[Load Image] ──first_frame──► [Gemini Veo Generate]
+[Load Image] ──first_frame──► [Gemini Veo Generate] ──video──► [Save Video]
                 prompt = "The camera slowly pulls back to reveal the full landscape"
 ```
+
+---
+
+### `save_video` — Save Video
+
+Writes a VIDEO output from **Gemini Veo Generate** (or any node that produces a VIDEO) to ComfyUI's output directory as an MP4 file. Displays the video in the ComfyUI UI after saving.
+
+**Category:** `Ranomany`
+**Dependencies:** none
+
+| Input | Type | Notes |
+|---|---|---|
+| `video` | VIDEO | Wire from `Gemini Veo Generate` |
+| `filename_prefix` | STRING | Prefix for the saved MP4 filename (default: `video`) |
+
+| Output | Type | Description |
+|---|---|---|
+| `filepath` | STRING | Full path to the saved MP4 file |
 
 ---
 
