@@ -209,11 +209,13 @@ class OpenAIImage:
                 }),
                 "width":              ("INT", {
                     "default": 1024, "min": 64, "max": 3840, "step": 16,
-                    "tooltip": "Output width in pixels. Must be a multiple of 16 (auto-snapped). Max 3840px.",
+                    "display": "number",
+                    "tooltip": "Output width in pixels. Snapped to nearest multiple of 16. Max 3840px. Ratio and pixel-count limits auto-corrected before the API call.",
                 }),
                 "height":             ("INT", {
                     "default": 1024, "min": 64, "max": 3840, "step": 16,
-                    "tooltip": "Output height in pixels. Must be a multiple of 16 (auto-snapped). Max 3840px.",
+                    "display": "number",
+                    "tooltip": "Output height in pixels. Snapped to nearest multiple of 16. Max 3840px. Ratio and pixel-count limits auto-corrected before the API call.",
                 }),
                 "quality":            (["auto", "low", "medium", "high"], {"default": "auto"}),
                 "background":         (["auto", "opaque"], {"default": "auto"}),
