@@ -325,7 +325,8 @@ class SaveVideo:
 
         return {
             "ui": {
-                "videos": [{"filename": file_name, "subfolder": subfolder, "type": "output"}],
+                "gifs": [{"filename": file_name, "subfolder": subfolder,
+                           "type": "output", "format": "video/mp4"}],
             },
             "result": (out_path,),
         }
