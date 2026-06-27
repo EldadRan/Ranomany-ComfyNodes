@@ -111,7 +111,8 @@ class GeminiVeo:
                 "model":            (VIDEO_MODELS, {"default": DEFAULT_VIDEO_MODEL}),
                 "aspect_ratio":     (["16:9", "9:16"], {"default": "16:9"}),
                 "resolution":       (["1080p", "720p", "4k"], {"default": "1080p"}),
-                "duration_seconds": ("INT", {"default": 8, "min": 4, "max": 8, "step": 2}),
+                "duration_seconds": ("INT", {"default": 8, "min": 4, "max": 8, "step": 4,
+                                    "tooltip": "4 = 720p only. 1080p and 4k require 8."}),
             },
             "optional": {
                 "first_frame":     ("IMAGE",),
@@ -148,6 +149,12 @@ class GeminiVeo:
 
         if not prompt.strip() and first_frame is None:
             raise ValueError("GeminiVeo: provide a prompt and/or a first frame image.")
+
+        if duration_seconds == 4 and resolution in ("1080p", "4k"):
+            raise ValueError(
+                f"GeminiVeo: {resolution} does not support 4-second videos. "
+                "Use duration_seconds=8, or switch resolution to 720p."
+            )
 
         client = _get_client(api_key)
 
