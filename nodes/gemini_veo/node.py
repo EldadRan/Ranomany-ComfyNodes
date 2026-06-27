@@ -242,6 +242,27 @@ class GeminiVeo:
 import folder_paths
 
 
+def _embed_mp4_metadata(path: str, meta_pairs: dict):
+    """Write key/value pairs as custom QuickTime atoms (readable by exiftool)."""
+    try:
+        from mutagen.mp4 import MP4, MP4FreeForm, AtomDataType
+    except ImportError:
+        log.warning("[SaveVideo] mutagen not installed — skipping metadata embed. "
+                    "Run: pip install mutagen>=1.47.0")
+        return
+    try:
+        tags = MP4(path)
+        if tags.tags is None:
+            tags.add_tags()
+        for k, v in meta_pairs.items():
+            atom = f"----:com.ranomany.comfynodes:{k}"
+            tags[atom] = [MP4FreeForm(v.encode("utf-8"), dataformat=AtomDataType.UTF8)]
+        tags.save()
+        log.info(f"[SaveVideo] embedded {len(meta_pairs)} metadata field(s)")
+    except Exception as e:
+        log.warning(f"[SaveVideo] metadata embed failed: {e}")
+
+
 class SaveVideo:
 
     @classmethod
@@ -251,6 +272,14 @@ class SaveVideo:
                 "video":           (VIDEO,),
                 "filename_prefix": ("STRING", {"default": "video"}),
             },
+            "optional": {
+                "extra_metadata": ("STRING", {
+                    "default": "",
+                    "multiline": True,
+                    "tooltip": 'Optional JSON object. Each key/value is written as a custom MP4 metadata atom. '
+                               'Example: {"prompt": "misty forest", "model": "veo-3.1-generate-preview"}',
+                }),
+            },
         }
 
     RETURN_TYPES  = ("STRING",)
@@ -259,7 +288,8 @@ class SaveVideo:
     CATEGORY      = "Ranomany"
     OUTPUT_NODE   = True
 
-    def save(self, video: dict, filename_prefix: str = "video"):
+    def save(self, video: dict, filename_prefix: str = "video", extra_metadata: str = ""):
+        import json
         import shutil
 
         src = video["filepath"]
@@ -273,6 +303,18 @@ class SaveVideo:
         os.makedirs(full_output_folder, exist_ok=True)
         shutil.copy2(src, out_path)
         log.info(f"[SaveVideo] saved → {out_path}")
+
+        meta_pairs: dict[str, str] = {}
+        if extra_metadata.strip():
+            try:
+                parsed = json.loads(extra_metadata)
+                if isinstance(parsed, dict):
+                    meta_pairs = {str(k): str(v) for k, v in parsed.items()}
+            except json.JSONDecodeError:
+                meta_pairs = {"extra_metadata_raw": extra_metadata}
+
+        if meta_pairs:
+            _embed_mp4_metadata(out_path, meta_pairs)
 
         return {
             "ui": {

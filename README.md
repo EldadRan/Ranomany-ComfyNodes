@@ -196,10 +196,19 @@ Writes a VIDEO output from **Gemini Veo Generate** (or any node that produces a 
 |---|---|---|
 | `video` | VIDEO | Wire from `Gemini Veo Generate` |
 | `filename_prefix` | STRING | Prefix for the saved MP4 filename (default: `video`) |
+| `extra_metadata` | STRING | Optional JSON object — each key/value is written as a custom MP4 metadata atom. Example: `{"prompt": "misty forest", "model": "veo-3.1-generate-preview"}` |
 
 | Output | Type | Description |
 |---|---|---|
 | `filepath` | STRING | Full path to the saved MP4 file |
+
+Metadata is stored as custom QuickTime atoms (`----:com.ranomany.comfynodes:KEY`). To read them on your Mac:
+
+```bash
+exiftool video_00001_.mp4
+```
+
+**Note:** MP4 does not use EXIF. The `extra_metadata` JSON format is the same as `SaveImageNoMeta`, but the storage mechanism is QuickTime atoms (MP4's native metadata system). Requires `mutagen>=1.47.0` (`pip install mutagen`).
 
 ---
 
