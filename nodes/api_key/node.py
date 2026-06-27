@@ -88,15 +88,15 @@ class APIKey:
             },
         }
 
-    RETURN_TYPES  = ("STRING",)
-    RETURN_NAMES  = ("api_key",)
+    RETURN_TYPES  = ("STRING", "STRING")
+    RETURN_NAMES  = ("api_key", "status")
     FUNCTION      = "resolve"
     CATEGORY      = "Ranomany"
     OUTPUT_NODE   = False
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
-        return float("nan")  # always re-run so the status badge stays current
+        return float("nan")  # always re-run so status stays current
 
     def resolve(self, key_name: str, api_key: str = "") -> dict:
         key_name = key_name.strip()
@@ -113,7 +113,7 @@ class APIKey:
             )
 
         status = _SOURCE_LABELS.get(source, "✅ Found")
-        return {"ui": {"text": [status]}, "result": (key,)}
+        return {"ui": {"text": [status]}, "result": (key, status)}
 
 
 NODE_CLASS_MAPPINGS = {
