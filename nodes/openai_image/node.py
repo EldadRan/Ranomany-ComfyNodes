@@ -121,37 +121,64 @@ def _tensor_and_mask_to_rgba_bytes(image_tensor: torch.Tensor, mask_tensor: torc
     return buf.getvalue()
 
 
-def _validate_size(size: str):
-    """Raise ValueError if size string violates gpt-image-2 constraints."""
-    if size.lower() == "auto":
-        return
-    try:
-        w_str, h_str = size.lower().split("x")
-        w, h = int(w_str), int(h_str)
-    except ValueError:
-        raise ValueError(
-            f"OpenAIImage: invalid size '{size}'. "
-            "Use 'WxH' (e.g. '1024x1024') or 'auto'."
-        )
-    if w % 16 != 0 or h % 16 != 0:
-        raise ValueError(
-            f"OpenAIImage: both width and height must be multiples of 16 (got {w}x{h})."
-        )
-    if max(w, h) > _MAX_EDGE:
-        raise ValueError(
-            f"OpenAIImage: max edge is {_MAX_EDGE}px (got {max(w,h)}px)."
-        )
-    ratio = max(w, h) / min(w, h)
-    if ratio > _MAX_RATIO:
-        raise ValueError(
-            f"OpenAIImage: long:short ratio must be ≤{_MAX_RATIO}:1 (got {ratio:.2f}:1)."
-        )
+def _snap16(v: int) -> int:
+    """Round to nearest multiple of 16, minimum 16."""
+    return max(16, round(v / 16) * 16)
+
+
+def _autocorrect_size(w: int, h: int) -> tuple:
+    """
+    Clamp w×h to gpt-image-2 constraints and return (w, h, size_str, warnings).
+    Rules:
+      - Both dims multiple of 16
+      - Max edge 3840px
+      - Ratio long:short ≤ 3:1
+      - Total pixels 655,360 – 8,294,400
+    Corrections are applied in order and logged so the user knows what changed.
+    """
+    warnings = []
+    orig = (w, h)
+
+    # Snap to multiple of 16
+    w, h = _snap16(w), _snap16(h)
+
+    # Clamp max edge
+    if w > _MAX_EDGE:
+        w = _MAX_EDGE
+    if h > _MAX_EDGE:
+        h = _MAX_EDGE
+
+    # Enforce 3:1 ratio — widen the short edge
+    if w > 0 and h > 0:
+        if w >= h and w / h > _MAX_RATIO:
+            h = _snap16(int(w / _MAX_RATIO))
+        elif h > w and h / w > _MAX_RATIO:
+            w = _snap16(int(h / _MAX_RATIO))
+
+    # Enforce pixel minimum — scale both up proportionally
     pixels = w * h
-    if not (_MIN_PIXELS <= pixels <= _MAX_PIXELS):
-        raise ValueError(
-            f"OpenAIImage: total pixels must be between {_MIN_PIXELS:,} and {_MAX_PIXELS:,} "
-            f"(got {pixels:,} for {w}x{h})."
+    if pixels < _MIN_PIXELS:
+        scale = (_MIN_PIXELS / pixels) ** 0.5
+        w = _snap16(int(w * scale))
+        h = _snap16(int(h * scale))
+        # Re-clamp after scale
+        w = min(w, _MAX_EDGE)
+        h = min(h, _MAX_EDGE)
+
+    # Enforce pixel maximum — scale both down proportionally
+    pixels = w * h
+    if pixels > _MAX_PIXELS:
+        scale = (_MAX_PIXELS / pixels) ** 0.5
+        w = _snap16(int(w * scale))
+        h = _snap16(int(h * scale))
+
+    if (w, h) != orig:
+        warnings.append(
+            f"[OpenAIImage] size auto-corrected: {orig[0]}×{orig[1]} → {w}×{h} "
+            f"(ratio={max(w,h)/min(w,h):.2f}:1, pixels={w*h:,})"
         )
+
+    return w, h, f"{w}x{h}", warnings
 
 
 def _tensor_from_pil(img: Image.Image) -> torch.Tensor:
@@ -180,13 +207,13 @@ class OpenAIImage:
                     "password": True,
                     "tooltip": "Leave blank to use OPENAI_API_KEY env var or .env file.",
                 }),
-                "size":               ("STRING", {
-                    "default": "1024x1024",
-                    "tooltip": (
-                        "WxH or 'auto'. Both dims must be multiples of 16, "
-                        "max edge 3840px, ratio ≤3:1, total pixels 655,360–8,294,400. "
-                        "Examples: 1024x1024, 1536x1024, 1024x1536, 2048x2048."
-                    ),
+                "width":              ("INT", {
+                    "default": 1024, "min": 64, "max": 3840, "step": 16,
+                    "tooltip": "Output width in pixels. Must be a multiple of 16 (auto-snapped). Max 3840px.",
+                }),
+                "height":             ("INT", {
+                    "default": 1024, "min": 64, "max": 3840, "step": 16,
+                    "tooltip": "Output height in pixels. Must be a multiple of 16 (auto-snapped). Max 3840px.",
                 }),
                 "quality":            (["auto", "low", "medium", "high"], {"default": "auto"}),
                 "background":         (["auto", "opaque"], {"default": "auto"}),
@@ -214,7 +241,8 @@ class OpenAIImage:
         image:              torch.Tensor = None,
         mask:               torch.Tensor = None,
         api_key:            str  = "",
-        size:               str  = "1024x1024",
+        width:              int  = 1024,
+        height:             int  = 1024,
         quality:            str  = "auto",
         background:         str  = "auto",
         output_format:      str  = "png",
@@ -226,7 +254,10 @@ class OpenAIImage:
         if not prompt.strip() and image is None:
             raise ValueError("OpenAIImage: provide a prompt and/or an input image.")
 
-        _validate_size(size)
+        width, height, size, size_warnings = _autocorrect_size(int(width), int(height))
+        for w in size_warnings:
+            log.warning(w)
+
         client = _get_client(api_key)
 
         edit_mode = image is not None
@@ -262,7 +293,7 @@ class OpenAIImage:
                 if mask_file is not None:
                     kwargs["mask"] = mask_file
 
-                log.info(f"[OpenAIImage] edit: size={size} n={n}")
+                log.info(f"[OpenAIImage] edit: {width}×{height} n={n}")
                 return client.images.edit(**kwargs)
             else:
                 kwargs = dict(
@@ -278,7 +309,7 @@ class OpenAIImage:
                 if output_format in ("jpeg", "webp"):
                     kwargs["output_compression"] = int(output_compression)
 
-                log.info(f"[OpenAIImage] generate: size={size} quality={quality} n={n}")
+                log.info(f"[OpenAIImage] generate: {width}×{height} quality={quality} n={n}")
                 return client.images.generate(**kwargs)
 
         response = None
