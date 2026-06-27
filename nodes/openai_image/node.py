@@ -121,9 +121,17 @@ def _tensor_and_mask_to_rgba_bytes(image_tensor: torch.Tensor, mask_tensor: torc
     return buf.getvalue()
 
 
+import math as _math
+
+
 def _snap16(v: int) -> int:
     """Round to nearest multiple of 16, minimum 16."""
     return max(16, round(v / 16) * 16)
+
+
+def _snap16_up(v: int) -> int:
+    """Round UP to nearest multiple of 16, minimum 16."""
+    return max(16, _math.ceil(v / 16) * 16)
 
 
 def _autocorrect_size(w: int, h: int) -> tuple:
@@ -132,9 +140,8 @@ def _autocorrect_size(w: int, h: int) -> tuple:
     Rules:
       - Both dims multiple of 16
       - Max edge 3840px
-      - Ratio long:short ≤ 3:1
+      - Ratio long:short ≤ 3:1  (strict — API rejects anything above)
       - Total pixels 655,360 – 8,294,400
-    Corrections are applied in order and logged so the user knows what changed.
     """
     warnings = []
     orig = (w, h)
@@ -143,17 +150,16 @@ def _autocorrect_size(w: int, h: int) -> tuple:
     w, h = _snap16(w), _snap16(h)
 
     # Clamp max edge
-    if w > _MAX_EDGE:
-        w = _MAX_EDGE
-    if h > _MAX_EDGE:
-        h = _MAX_EDGE
+    w = min(w, _MAX_EDGE)
+    h = min(h, _MAX_EDGE)
 
-    # Enforce 3:1 ratio — widen the short edge
+    # Enforce 3:1 ratio — round the short edge UP so ratio stays ≤ 3.0 after snapping.
+    # Must use ceil (not round) because rounding down keeps ratio above 3:1.
     if w > 0 and h > 0:
         if w >= h and w / h > _MAX_RATIO:
-            h = _snap16(int(w / _MAX_RATIO))
+            h = _snap16_up(_math.ceil(w / _MAX_RATIO))
         elif h > w and h / w > _MAX_RATIO:
-            w = _snap16(int(h / _MAX_RATIO))
+            w = _snap16_up(_math.ceil(h / _MAX_RATIO))
 
     # Enforce pixel minimum — scale both up proportionally
     pixels = w * h
@@ -161,7 +167,6 @@ def _autocorrect_size(w: int, h: int) -> tuple:
         scale = (_MIN_PIXELS / pixels) ** 0.5
         w = _snap16(int(w * scale))
         h = _snap16(int(h * scale))
-        # Re-clamp after scale
         w = min(w, _MAX_EDGE)
         h = min(h, _MAX_EDGE)
 
