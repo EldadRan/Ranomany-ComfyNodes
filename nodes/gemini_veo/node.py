@@ -125,7 +125,8 @@ class GeminiVeo:
             },
         }
 
-    RETURN_TYPES  = ()
+    RETURN_TYPES  = ("STRING",)
+    RETURN_NAMES  = ("filepath",)
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/Gemini"
     OUTPUT_NODE   = True
@@ -250,7 +251,8 @@ class GeminiVeo:
         return {
             "ui": {
                 "videos": [{"filename": file_name, "subfolder": subfolder, "type": "output"}],
-            }
+            },
+            "result": (out_path,),
         }
 
 
