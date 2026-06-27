@@ -215,9 +215,26 @@ class GeminiVeo:
 
         if operation.response is None:
             err = getattr(operation, "error", None)
-            msg = (getattr(err, "message", None) or str(err)) if err else \
-                  "Generation completed with no response — likely a silent safety-filter rejection."
-            raise RuntimeError(f"GeminiVeo: {msg}")
+            if err:
+                if hasattr(err, "message"):
+                    err_msg = err.message
+                    err_code = getattr(err, "code", None)
+                elif isinstance(err, dict):
+                    err_msg = err.get("message", str(err))
+                    err_code = err.get("code")
+                else:
+                    err_msg = str(err)
+                    err_code = None
+                if err_code == 13:
+                    raise RuntimeError(
+                        f"GeminiVeo: transient server error (code 13) — {err_msg} "
+                        "Re-queue the prompt to retry."
+                    )
+                raise RuntimeError(f"GeminiVeo: {err_msg}")
+            raise RuntimeError(
+                "GeminiVeo: generation completed with no response — "
+                "likely a silent safety-filter rejection."
+            )
 
         generated = operation.response.generated_videos
         if not generated:
