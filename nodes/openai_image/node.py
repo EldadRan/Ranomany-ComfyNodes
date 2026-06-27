@@ -258,7 +258,6 @@ class OpenAIImage:
                     prompt=prompt.strip(),
                     size=size,
                     n=int(n),
-                    response_format="b64_json",
                 )
                 if mask_file is not None:
                     kwargs["mask"] = mask_file
@@ -275,7 +274,6 @@ class OpenAIImage:
                     output_format=output_format,
                     n=int(n),
                     moderation=moderation,
-                    response_format="b64_json",
                 )
                 if output_format in ("jpeg", "webp"):
                     kwargs["output_compression"] = int(output_compression)
@@ -297,7 +295,14 @@ class OpenAIImage:
 
         tensors = []
         for item in response.data:
-            raw = base64.b64decode(item.b64_json)
+            if item.b64_json:
+                raw = base64.b64decode(item.b64_json)
+            elif item.url:
+                import urllib.request
+                with urllib.request.urlopen(item.url) as resp:
+                    raw = resp.read()
+            else:
+                raise RuntimeError("OpenAIImage: response item has neither b64_json nor url.")
             pil = Image.open(io.BytesIO(raw)).convert("RGB")
             tensors.append(_tensor_from_pil(pil))
 
