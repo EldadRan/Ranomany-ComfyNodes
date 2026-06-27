@@ -150,6 +150,12 @@ class GeminiVeo:
         if not prompt.strip() and first_frame is None:
             raise ValueError("GeminiVeo: provide a prompt and/or a first frame image.")
 
+        # Known API constraints per model/resolution/duration.
+        # Lite does not support 4k; all models reject 4s at 1080p or 4k.
+        if "lite" in model and resolution == "4k":
+            raise ValueError(
+                f"GeminiVeo: {model} does not support 4k. Use 720p or 1080p."
+            )
         if duration_seconds == 4 and resolution in ("1080p", "4k"):
             raise ValueError(
                 f"GeminiVeo: {resolution} does not support 4-second videos. "
