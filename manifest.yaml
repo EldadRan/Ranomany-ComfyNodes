@@ -27,6 +27,15 @@ gemini_image:
   deps:    [google-genai>=1.0.0]
   version: "0.1.0"
 
+openai_image:
+  description: |
+    Generate or edit images via the OpenAI Images API (gpt-image-2 / ChatGPT Images 2.0).
+    Accepts an optional input IMAGE for editing and an optional MASK for inpainting.
+    Outputs a standard ComfyUI IMAGE batch tensor.
+    Requires OPENAI_API_KEY env var (or pass it via the api_key input).
+  deps:    [openai>=1.0.0]
+  version: "0.1.0"
+
 gemini_veo:
   description: |
     Generate videos via the Veo API (veo-3.1-generate-preview and variants).

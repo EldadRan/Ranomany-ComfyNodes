@@ -8,10 +8,13 @@ Shared ComfyUI custom-node pack used across Ranomany projects.
 Ranomany-ComfyNodes/
 ├── README.md
 ├── manifest.yaml                # node_name -> {description, deps, version}
+├── web/                         # JS extensions auto-loaded by ComfyUI frontend
+│   └── save_video.js            # Inline video preview for Save Video node
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
     ├── gemini_image/            # Image generation / editing via Gemini
     ├── gemini_veo/              # Video generation via Veo + Save Video node
+    ├── openai_image/            # Image generation / editing via OpenAI gpt-image-2
     └── save_image_no_meta/      # Save PNG without workflow metadata
 ```
 
@@ -28,10 +31,12 @@ cp -r nodes/gemini_veo      /path/to/ComfyUI/custom_nodes/
 cp -r nodes/save_image_no_meta /path/to/ComfyUI/custom_nodes/
 ```
 
-Install dependencies for any Gemini node:
+Install dependencies:
 
 ```bash
-pip install google-genai>=1.0.0
+pip install google-genai>=1.0.0   # required by gemini_image and gemini_veo
+pip install openai>=1.0.0          # required by openai_image
+pip install mutagen>=1.47.0        # optional — enables MP4 metadata embedding in Save Video
 ```
 
 ### Pinning by SHA in a Dockerfile
@@ -43,7 +48,9 @@ RUN git clone https://github.com/EldadRan/Ranomany-ComfyNodes.git /tmp/cn && \
     cp -r /tmp/cn/nodes/api_key         /comfyui/custom_nodes/ && \
     cp -r /tmp/cn/nodes/gemini_image    /comfyui/custom_nodes/ && \
     cp -r /tmp/cn/nodes/gemini_veo      /comfyui/custom_nodes/ && \
-    cp -r /tmp/cn/nodes/save_image_no_meta /comfyui/custom_nodes/
+    cp -r /tmp/cn/nodes/openai_image    /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/save_image_no_meta /comfyui/custom_nodes/ && \
+    pip install google-genai>=1.0.0 openai>=1.0.0 mutagen>=1.47.0
 ```
 
 ---
@@ -137,6 +144,61 @@ Generate images from text, or edit/compose existing images using the Gemini mult
 
 ---
 
+### `openai_image` — OpenAI Image Generate
+
+Generate images from text, or edit/inpaint existing images using OpenAI's `gpt-image-2` (ChatGPT Images 2.0). Outputs a standard ComfyUI `IMAGE` batch tensor.
+
+**Category:** `Ranomany/OpenAI`
+**Dependencies:** `openai>=1.0.0`
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | STRING | — | Describe what you want. Required unless `image` is supplied. |
+| `model` | dropdown | `gpt-image-2` | Currently only `gpt-image-2` |
+| `image` | IMAGE | *(optional)* | Input image for editing. Connecting this switches the node to edit mode. |
+| `mask` | MASK | *(optional)* | Inpainting mask — `1` = edit here, `0` = keep. Only used in edit mode. |
+| `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
+| `size` | STRING | `1024x1024` | `WxH` or `auto`. Dims must be multiples of 16, max edge 3840px, ratio ≤3:1, pixels 655,360–8,294,400. |
+| `quality` | dropdown | `auto` | `auto`, `low`, `medium`, `high` |
+| `background` | dropdown | `auto` | `auto`, `opaque` (`transparent` is not supported by gpt-image-2) |
+| `output_format` | dropdown | `png` | `png`, `jpeg`, `webp` |
+| `output_compression` | INT (0–100) | `85` | Compression for `jpeg`/`webp`. Ignored for `png`. |
+| `moderation` | dropdown | `auto` | `auto`, `low` — content filtering strictness |
+| `n` | INT (1–10) | `1` | Number of images to generate |
+| `retries` | INT (0–3) | `0` | Auto-retry on transient 429/5xx errors |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `images` | IMAGE | Batch tensor (B×H×W×3, float32, 0–1). One tensor per image returned. |
+
+#### Example workflows
+
+**Text to image:**
+```
+[API Key] key_name=OPENAI_API_KEY ──api_key──► [OpenAI Image Generate]
+                    prompt = "A photorealistic golden retriever on a misty mountain"
+                    size   = 1024x1024
+                    ──images──► [Save Image (no workflow metadata)]
+```
+
+**Image editing / inpainting:**
+```
+[Load Image] ──image──► [OpenAI Image Generate]
+[Mask Editor] ──mask──►     prompt = "Replace the sky with a dramatic sunset"
+                            ──images──► [Preview Image]
+```
+
+**`.env` file** (create once in the ComfyUI root):
+```
+OPENAI_API_KEY=sk-...
+```
+
+---
+
 ### `gemini_veo` — Gemini Veo Generate
 
 Generate videos using Google's Veo model. The node blocks until generation completes (typically 1–3 minutes), then outputs a `VIDEO` value that you wire to a **Save Video** node.
@@ -154,7 +216,7 @@ Generate videos using Google's Veo model. The node blocks until generation compl
 | `resolution` | dropdown | `1080p` | `720p`, `1080p`, or `4k` (Lite model does not support `4k`) |
 | `duration_seconds` | INT | `8` | `4` or `8` |
 | `first_frame` | IMAGE | *(optional)* | Anchor the first frame of the video to this image |
-| `last_frame` | IMAGE | *(optional)* | Anchor the last frame of the video to this image |
+| `last_frame` | IMAGE | *(optional)* | Anchor the last frame of the video to this image. **Only supported by `veo-3.1-generate-preview`** — raises an error on fast/lite models. |
 | `negative_prompt` | STRING | *(optional)* | Things to avoid in the output (e.g. `blur, low quality, distorted faces`) |
 | `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
 | `max_wait` | INT | `600` | Seconds before the node gives up (60–1800) |

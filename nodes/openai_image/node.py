@@ -1,0 +1,332 @@
+"""
+OpenAIImage — ComfyUI node for gpt-image-2 (ChatGPT Images 2.0) generation / editing.
+
+Calls the OpenAI Images API directly (openai SDK).
+
+API key resolution order:
+  1. Value passed via the `api_key` input (or wired from an API Key node)
+  2. OPENAI_API_KEY environment variable
+  3. .env file — searched in the node dir, custom_nodes/, and ComfyUI root
+
+Supports:
+  - Text-to-image (prompt only)
+  - Image editing / inpainting (prompt + image + optional mask)
+
+Returns a standard ComfyUI IMAGE batch tensor (B×H×W×3, float32, 0-1).
+"""
+
+import base64
+import io
+import logging
+import os
+import time
+
+import numpy as np
+import torch
+from PIL import Image
+
+log = logging.getLogger("OpenAIImage")
+
+IMAGE_MODELS = ["gpt-image-2"]
+DEFAULT_MODEL = "gpt-image-2"
+
+_RETRY_STATUS  = {429, 500, 502, 503, 504}
+_RETRY_DELAYS  = (2, 5, 12)
+_RETRY_PHRASES = ("503", "502", "504", "500", "UNAVAILABLE", "Service Unavailable", "rate_limit")
+
+_ENV_RELATIVE_PATHS = [".", "..", "../.."]
+
+# gpt-image-2 size constraints
+_MAX_EDGE    = 3840
+_MIN_PIXELS  = 655_360
+_MAX_PIXELS  = 8_294_400
+_MAX_RATIO   = 3.0
+
+
+def _read_env_file(path: str) -> str:
+    env_path = os.path.join(path, ".env")
+    if not os.path.isfile(env_path):
+        return ""
+    try:
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                if k.strip() == "OPENAI_API_KEY":
+                    return v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
+def _resolve_key(api_key_input: str) -> str:
+    key = (api_key_input or "").strip()
+    if key:
+        return key
+    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if key:
+        return key
+    node_dir = os.path.dirname(os.path.abspath(__file__))
+    for rel in _ENV_RELATIVE_PATHS:
+        key = _read_env_file(os.path.normpath(os.path.join(node_dir, rel)))
+        if key:
+            return key
+    return ""
+
+
+def _get_client(api_key: str):
+    import openai
+    key = _resolve_key(api_key)
+    if not key:
+        raise EnvironmentError(
+            "No OpenAI API key found. Pass it via the api_key input, set "
+            "OPENAI_API_KEY in your environment, or create a .env file with "
+            "OPENAI_API_KEY=... in your ComfyUI root."
+        )
+    return openai.OpenAI(api_key=key)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if code in _RETRY_STATUS:
+        return True
+    msg = str(exc)
+    return any(s in msg for s in _RETRY_PHRASES)
+
+
+def _tensor_to_png_bytes(tensor: torch.Tensor) -> bytes:
+    """Convert a ComfyUI IMAGE tensor (H×W×3 float32 0-1) to PNG bytes."""
+    arr = (tensor.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+    buf = io.BytesIO()
+    Image.fromarray(arr).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _tensor_and_mask_to_rgba_bytes(image_tensor: torch.Tensor, mask_tensor: torch.Tensor) -> bytes:
+    """
+    Compose an RGBA PNG for OpenAI's edit mask format.
+    OpenAI: alpha=0 means 'edit here', alpha=255 means 'keep'.
+    ComfyUI mask: 1=edit-here, 0=keep — so alpha = (1 - mask) * 255.
+    """
+    img_arr  = (image_tensor.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)  # H×W×3
+    mask_arr = mask_tensor.cpu().numpy()  # H×W (possibly 1×H×W)
+    if mask_arr.ndim == 3:
+        mask_arr = mask_arr[0]
+    alpha = ((1.0 - mask_arr) * 255).clip(0, 255).astype(np.uint8)
+    rgba  = np.dstack([img_arr, alpha])  # H×W×4
+    buf   = io.BytesIO()
+    Image.fromarray(rgba, mode="RGBA").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _validate_size(size: str):
+    """Raise ValueError if size string violates gpt-image-2 constraints."""
+    if size.lower() == "auto":
+        return
+    try:
+        w_str, h_str = size.lower().split("x")
+        w, h = int(w_str), int(h_str)
+    except ValueError:
+        raise ValueError(
+            f"OpenAIImage: invalid size '{size}'. "
+            "Use 'WxH' (e.g. '1024x1024') or 'auto'."
+        )
+    if w % 16 != 0 or h % 16 != 0:
+        raise ValueError(
+            f"OpenAIImage: both width and height must be multiples of 16 (got {w}x{h})."
+        )
+    if max(w, h) > _MAX_EDGE:
+        raise ValueError(
+            f"OpenAIImage: max edge is {_MAX_EDGE}px (got {max(w,h)}px)."
+        )
+    ratio = max(w, h) / min(w, h)
+    if ratio > _MAX_RATIO:
+        raise ValueError(
+            f"OpenAIImage: long:short ratio must be ≤{_MAX_RATIO}:1 (got {ratio:.2f}:1)."
+        )
+    pixels = w * h
+    if not (_MIN_PIXELS <= pixels <= _MAX_PIXELS):
+        raise ValueError(
+            f"OpenAIImage: total pixels must be between {_MIN_PIXELS:,} and {_MAX_PIXELS:,} "
+            f"(got {pixels:,} for {w}x{h})."
+        )
+
+
+def _tensor_from_pil(img: Image.Image) -> torch.Tensor:
+    arr = np.array(img.convert("RGB")).astype(np.float32) / 255.0
+    return torch.from_numpy(arr)  # H×W×3
+
+
+class OpenAIImage:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "Describe the image you want to generate…",
+                }),
+                "model": (IMAGE_MODELS, {"default": DEFAULT_MODEL}),
+            },
+            "optional": {
+                "image":              ("IMAGE",),
+                "mask":               ("MASK",),
+                "api_key":            ("STRING", {
+                    "default": "",
+                    "password": True,
+                    "tooltip": "Leave blank to use OPENAI_API_KEY env var or .env file.",
+                }),
+                "size":               ("STRING", {
+                    "default": "1024x1024",
+                    "tooltip": (
+                        "WxH or 'auto'. Both dims must be multiples of 16, "
+                        "max edge 3840px, ratio ≤3:1, total pixels 655,360–8,294,400. "
+                        "Examples: 1024x1024, 1536x1024, 1024x1536, 2048x2048."
+                    ),
+                }),
+                "quality":            (["auto", "low", "medium", "high"], {"default": "auto"}),
+                "background":         (["auto", "opaque"], {"default": "auto"}),
+                "output_format":      (["png", "jpeg", "webp"], {"default": "png"}),
+                "output_compression": ("INT", {
+                    "default": 85, "min": 0, "max": 100, "step": 1,
+                    "tooltip": "Compression level for jpeg/webp (0–100). Ignored for png.",
+                }),
+                "moderation":         (["auto", "low"], {"default": "auto"}),
+                "n":                  ("INT", {"default": 1, "min": 1, "max": 10, "step": 1}),
+                "retries":            ("INT", {"default": 0, "min": 0, "max": 3, "step": 1}),
+            },
+        }
+
+    RETURN_TYPES  = ("IMAGE",)
+    RETURN_NAMES  = ("images",)
+    FUNCTION      = "generate"
+    CATEGORY      = "Ranomany/OpenAI"
+    OUTPUT_NODE   = False
+
+    def generate(
+        self,
+        prompt:             str,
+        model:              str  = DEFAULT_MODEL,
+        image:              torch.Tensor = None,
+        mask:               torch.Tensor = None,
+        api_key:            str  = "",
+        size:               str  = "1024x1024",
+        quality:            str  = "auto",
+        background:         str  = "auto",
+        output_format:      str  = "png",
+        output_compression: int  = 85,
+        moderation:         str  = "auto",
+        n:                  int  = 1,
+        retries:            int  = 0,
+    ):
+        if not prompt.strip() and image is None:
+            raise ValueError("OpenAIImage: provide a prompt and/or an input image.")
+
+        _validate_size(size)
+        client = _get_client(api_key)
+
+        edit_mode = image is not None
+
+        retries = max(0, min(int(retries), len(_RETRY_DELAYS)))
+
+        def _call():
+            if edit_mode:
+                # Prepare image file-like object
+                if image.ndim == 4:
+                    img_tensor = image[0]
+                else:
+                    img_tensor = image
+                img_bytes = _tensor_to_png_bytes(img_tensor)
+                img_file  = io.BytesIO(img_bytes)
+                img_file.name = "image.png"
+
+                # Prepare optional mask
+                mask_file = None
+                if mask is not None:
+                    mask_t = mask
+                    rgba_bytes = _tensor_and_mask_to_rgba_bytes(img_tensor, mask_t)
+                    mask_file  = io.BytesIO(rgba_bytes)
+                    mask_file.name = "mask.png"
+
+                kwargs = dict(
+                    model=model,
+                    image=img_file,
+                    prompt=prompt.strip(),
+                    size=size,
+                    n=int(n),
+                    response_format="b64_json",
+                )
+                if mask_file is not None:
+                    kwargs["mask"] = mask_file
+
+                log.info(f"[OpenAIImage] edit: size={size} n={n}")
+                return client.images.edit(**kwargs)
+            else:
+                kwargs = dict(
+                    model=model,
+                    prompt=prompt.strip(),
+                    size=size,
+                    quality=quality,
+                    background=background,
+                    output_format=output_format,
+                    n=int(n),
+                    moderation=moderation,
+                    response_format="b64_json",
+                )
+                if output_format in ("jpeg", "webp"):
+                    kwargs["output_compression"] = int(output_compression)
+
+                log.info(f"[OpenAIImage] generate: size={size} quality={quality} n={n}")
+                return client.images.generate(**kwargs)
+
+        response = None
+        for attempt in range(retries + 1):
+            try:
+                response = _call()
+                break
+            except Exception as exc:
+                if not _is_retryable(exc) or attempt >= retries:
+                    raise
+                delay = _RETRY_DELAYS[attempt]
+                log.warning(f"[OpenAIImage] transient error attempt {attempt+1}: {exc}; retry in {delay}s")
+                time.sleep(delay)
+
+        tensors = []
+        for item in response.data:
+            raw = base64.b64decode(item.b64_json)
+            pil = Image.open(io.BytesIO(raw)).convert("RGB")
+            tensors.append(_tensor_from_pil(pil))
+
+        if not tensors:
+            raise RuntimeError("OpenAIImage: no images returned by the API.")
+
+        if len(tensors) > 1:
+            max_h = max(t.shape[0] for t in tensors)
+            max_w = max(t.shape[1] for t in tensors)
+            padded = []
+            for t in tensors:
+                h, w = t.shape[:2]
+                if h < max_h or w < max_w:
+                    pad = torch.zeros(max_h, max_w, 3, dtype=t.dtype)
+                    pad[:h, :w] = t
+                    padded.append(pad)
+                else:
+                    padded.append(t)
+            batch = torch.stack(padded, dim=0)
+        else:
+            batch = tensors[0].unsqueeze(0)
+
+        return (batch,)
+
+
+NODE_CLASS_MAPPINGS = {
+    "OpenAIImage": OpenAIImage,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "OpenAIImage": "OpenAI Image Generate",
+}
