@@ -39,7 +39,7 @@ class SaveImageNoMeta:
     RETURN_TYPES = ()
     FUNCTION     = "save"
     OUTPUT_NODE  = True
-    CATEGORY     = "image/save"
+    CATEGORY     = "Ranomany"
 
     def save(self, images, filename_prefix: str = "ComfyUI",
              extra_metadata: str = "", prompt=None, extra_pnginfo=None):
