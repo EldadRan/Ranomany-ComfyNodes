@@ -161,6 +161,12 @@ class GeminiVeo:
                 f"GeminiVeo: {resolution} does not support 4-second videos. "
                 "Use duration_seconds=8, or switch resolution to 720p."
             )
+        if last_frame is not None and model != "veo-3.1-generate-preview":
+            raise ValueError(
+                f"GeminiVeo: last_frame anchoring is only supported by "
+                f"veo-3.1-generate-preview, not {model}. "
+                "Switch model or disconnect last_frame."
+            )
 
         client = _get_client(api_key)
 
