@@ -1,14 +1,15 @@
 import importlib.util
 import os
+import traceback
 
 _here = os.path.dirname(os.path.abspath(__file__))
 
+NODE_CLASS_MAPPINGS = {}
+NODE_DISPLAY_NAME_MAPPINGS = {}
+
 
 def _load(rel_path: str):
-    """Load a node.py by file path, avoiding sys.modules name conflicts."""
     abs_path = os.path.join(_here, rel_path)
-    # Give each module a unique internal name so they don't collide with each other
-    # or with any existing sys.modules entries.
     mod_name = "_ranomany_" + rel_path.replace(os.sep, "_").replace("/", "_").replace(".", "_")
     spec = importlib.util.spec_from_file_location(mod_name, abs_path)
     mod = importlib.util.module_from_spec(spec)
@@ -16,23 +17,24 @@ def _load(rel_path: str):
     return mod
 
 
-_m1 = _load("nodes/gemini_api_key/node.py")
-_m2 = _load("nodes/gemini_image/node.py")
-_m3 = _load("nodes/gemini_veo/node.py")
-_m4 = _load("nodes/save_image_no_meta/node.py")
+_NODE_FILES = [
+    ("nodes/gemini_api_key/node.py",    "gemini_api_key"),
+    ("nodes/gemini_image/node.py",      "gemini_image"),
+    ("nodes/gemini_veo/node.py",        "gemini_veo"),
+    ("nodes/save_image_no_meta/node.py","save_image_no_meta"),
+]
 
-NODE_CLASS_MAPPINGS = {
-    **_m1.NODE_CLASS_MAPPINGS,
-    **_m2.NODE_CLASS_MAPPINGS,
-    **_m3.NODE_CLASS_MAPPINGS,
-    **_m4.NODE_CLASS_MAPPINGS,
-}
+for _rel, _label in _NODE_FILES:
+    try:
+        _mod = _load(_rel)
+        _km  = getattr(_mod, "NODE_CLASS_MAPPINGS", {})
+        _dn  = getattr(_mod, "NODE_DISPLAY_NAME_MAPPINGS", {})
+        NODE_CLASS_MAPPINGS.update(_km)
+        NODE_DISPLAY_NAME_MAPPINGS.update(_dn)
+        print(f"[Ranomany-ComfyNodes] OK  {_label}: {list(_km.keys())}")
+    except Exception:
+        print(f"[Ranomany-ComfyNodes] ERR {_label}:\n{traceback.format_exc()}")
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    **_m1.NODE_DISPLAY_NAME_MAPPINGS,
-    **_m2.NODE_DISPLAY_NAME_MAPPINGS,
-    **_m3.NODE_DISPLAY_NAME_MAPPINGS,
-    **_m4.NODE_DISPLAY_NAME_MAPPINGS,
-}
+print(f"[Ranomany-ComfyNodes] Registered nodes: {list(NODE_CLASS_MAPPINGS.keys())}")
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
