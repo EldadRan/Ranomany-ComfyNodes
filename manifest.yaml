@@ -8,13 +8,13 @@ save_image_no_meta:
   deps:    []
   version: "0.1.0"
 
-gemini_api_key:
+api_key:
   description: |
-    Dedicated API key node for Gemini services. Place one per workflow and wire
-    its STRING output to GeminiImage / GeminiVeo nodes.
-    Resolution order: node input → GEMINI_API_KEY env var → .env file
-    (searched in node dir, custom_nodes/, and ComfyUI root).
-    The key input is password-masked so it is never visible in the UI.
+    Generic API key resolver node. Set key_name to any environment variable
+    (e.g. GEMINI_API_KEY, OPENAI_API_KEY) and wire the STRING output to any
+    node that needs it. Shows a status badge indicating where the key was found:
+    node input, environment variable, or .env file. Works for any provider.
+    Resolution order: node input → env var → .env file (node dir / custom_nodes / ComfyUI root).
   deps:    []
   version: "0.1.0"
 
