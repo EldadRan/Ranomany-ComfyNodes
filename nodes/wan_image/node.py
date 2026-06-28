@@ -174,6 +174,50 @@ def _download_url(url: str) -> bytes:
         return r.read()
 
 
+_PRESETS = {"1k", "2k", "4k"}
+
+def _validate_size(size: str, has_image: bool) -> str:
+    """Normalise and validate the size param. Returns the value to send to the API."""
+    s = size.strip()
+    if s.upper() in {p.upper() for p in _PRESETS}:
+        return s.upper()
+
+    # Expect W*H  (asterisk or x)
+    s_norm = s.replace("x", "*").replace("X", "*").replace("×", "*")
+    parts = s_norm.split("*")
+    if len(parts) != 2:
+        raise ValueError(
+            f"WanImage: invalid size '{size}'. Use a preset (1K, 2K, 4K) or W*H format (e.g. 1280*720)."
+        )
+    try:
+        w, h = int(parts[0].strip()), int(parts[1].strip())
+    except ValueError:
+        raise ValueError(f"WanImage: size '{size}' — width and height must be integers.")
+
+    # Ratio check (1:8 to 8:1)
+    ratio = max(w, h) / min(w, h)
+    if ratio > 8.0:
+        raise ValueError(
+            f"WanImage: aspect ratio {max(w,h)}:{min(w,h)} ({ratio:.2f}:1) exceeds the 8:1 limit."
+        )
+
+    # Pixel count check
+    pixels = w * h
+    min_px = 768 * 768
+    max_px = (2048 * 2048) if has_image else (4096 * 4096)
+    mode_label = "image editing" if has_image else "text-to-image"
+    if pixels < min_px:
+        raise ValueError(
+            f"WanImage: {w}×{h} = {pixels:,} pixels is below the minimum of {min_px:,} (768×768)."
+        )
+    if pixels > max_px:
+        raise ValueError(
+            f"WanImage: {w}×{h} = {pixels:,} pixels exceeds the {mode_label} maximum of {max_px:,} pixels."
+        )
+
+    return f"{w}*{h}"
+
+
 class WanImage:
 
     @classmethod
@@ -198,9 +242,13 @@ class WanImage:
                     "default": "",
                     "tooltip": "Singapore workspace ID (e.g. ws-xxxxxxxx). Leave blank for Beijing endpoint.",
                 }),
-                "size":             (["1K", "2K", "4K"], {
+                "size":             ("STRING", {
                     "default": "2K",
-                    "tooltip": "Output size. 4K only available for wan2.7-image-pro in text-to-image mode.",
+                    "tooltip": (
+                        "Preset: 1K (1024×1024), 2K (2048×2048), 4K (4096×4096 — pro t2i only).\n"
+                        "Custom: W*H in pixels, e.g. 1280*720 or 768*1366.\n"
+                        "Ratio limit: 8:1 max. Pixel limit: 768²–4096² (t2i) or 768²–2048² (editing)."
+                    ),
                 }),
                 "n":                ("INT", {"default": 1, "min": 1, "max": 4, "step": 1,
                                              "tooltip": "Number of images to generate (1-4, or up to 12 in image set mode)."}),
@@ -255,6 +303,9 @@ class WanImage:
 
         base = _base_url(workspace_id)
 
+        # Validate and normalise size before touching the API
+        validated_size = _validate_size(size, has_image=image is not None)
+
         # Build messages content
         content = []
         if prompt.strip():
@@ -273,7 +324,7 @@ class WanImage:
                 "messages": [{"role": "user", "content": content}]
             },
             "parameters": {
-                "size":             size,
+                "size":             validated_size,
                 "n":                int(n),
                 "watermark":        watermark == "true",
                 "enable_sequential": enable_sequential == "true",
