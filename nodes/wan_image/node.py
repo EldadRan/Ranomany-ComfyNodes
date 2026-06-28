@@ -72,19 +72,19 @@ def _read_env_file(path: str) -> str:
     return ""
 
 
-def _resolve_key(api_key_input: str) -> str:
+def _resolve_key(api_key_input: str) -> tuple:
     key = (api_key_input or "").strip()
     if key:
-        return key
+        return key, "✅ manual input"
     key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
     if key:
-        return key
+        return key, "✅ environment variable (DASHSCOPE_API_KEY)"
     node_dir = os.path.dirname(os.path.abspath(__file__))
     for rel in _ENV_RELATIVE_PATHS:
         key = _read_env_file(os.path.normpath(os.path.join(node_dir, rel)))
         if key:
-            return key
-    return ""
+            return key, "✅ .env file"
+    return "", "❌ no key found"
 
 
 def _base_url(workspace_id: str) -> str:
@@ -269,8 +269,8 @@ class WanImage:
             },
         }
 
-    RETURN_TYPES  = ("IMAGE",)
-    RETURN_NAMES  = ("images",)
+    RETURN_TYPES  = ("IMAGE", "STRING")
+    RETURN_NAMES  = ("images", "key_status")
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/Alibaba"
     OUTPUT_NODE   = False
@@ -293,7 +293,7 @@ class WanImage:
         if not prompt.strip() and image is None:
             raise ValueError("WanImage: provide a prompt and/or an input image.")
 
-        key = _resolve_key(api_key)
+        key, key_status = _resolve_key(api_key)
         if not key:
             raise EnvironmentError(
                 "No DashScope API key found. Pass it via the api_key input, set "
@@ -398,7 +398,7 @@ class WanImage:
             pil = Image.open(io.BytesIO(raw)).convert("RGB")
             tensors.append(_tensor_from_pil(pil))
 
-        return (_build_batch(tensors),)
+        return (_build_batch(tensors), key_status)
 
 
 NODE_CLASS_MAPPINGS = {

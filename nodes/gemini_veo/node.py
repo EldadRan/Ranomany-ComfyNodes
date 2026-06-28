@@ -57,31 +57,31 @@ def _read_env_file(path: str) -> str:
     return ""
 
 
-def _resolve_key(api_key_input: str) -> str:
+def _resolve_key(api_key_input: str) -> tuple:
     key = (api_key_input or "").strip()
     if key:
-        return key
+        return key, "✅ manual input"
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if key:
-        return key
+        return key, "✅ environment variable (GEMINI_API_KEY)"
     node_dir = os.path.dirname(os.path.abspath(__file__))
     for rel in _ENV_RELATIVE_PATHS:
         key = _read_env_file(os.path.normpath(os.path.join(node_dir, rel)))
         if key:
-            return key
-    return ""
+            return key, "✅ .env file"
+    return "", "❌ no key found"
 
 
 def _get_client(api_key: str):
     from google import genai
-    key = _resolve_key(api_key)
+    key, status = _resolve_key(api_key)
     if not key:
         raise EnvironmentError(
             "No Gemini API key found. Pass it via the api_key input, set "
             "GEMINI_API_KEY in your environment, or create a .env file with "
             "GEMINI_API_KEY=... in your ComfyUI root."
         )
-    return genai.Client(api_key=key)
+    return genai.Client(api_key=key), status
 
 
 def _tensor_to_png_bytes(tensor: torch.Tensor) -> bytes:
@@ -125,8 +125,8 @@ class GeminiVeo:
             },
         }
 
-    RETURN_TYPES  = (VIDEO,)
-    RETURN_NAMES  = ("video",)
+    RETURN_TYPES  = (VIDEO, "STRING")
+    RETURN_NAMES  = ("video", "key_status")
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/Gemini"
     OUTPUT_NODE   = False
@@ -168,7 +168,7 @@ class GeminiVeo:
                 "Switch model or disconnect last_frame."
             )
 
-        client = _get_client(api_key)
+        client, key_status = _get_client(api_key)
 
         def _to_gemini_image(tensor):
             if tensor is None:
@@ -270,7 +270,7 @@ class GeminiVeo:
         tmp.close()
         log.info(f"[GeminiVeo] temp video → {tmp.name}")
 
-        return ({"filepath": tmp.name, "mime_type": "video/mp4"},)
+        return ({"filepath": tmp.name, "mime_type": "video/mp4"}, key_status)
 
 
 # ── SaveVideo node ─────────────────────────────────────────────────────────────

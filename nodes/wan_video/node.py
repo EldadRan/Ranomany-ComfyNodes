@@ -78,19 +78,19 @@ def _read_env_file(path: str) -> str:
     return ""
 
 
-def _resolve_key(api_key_input: str) -> str:
+def _resolve_key(api_key_input: str) -> tuple:
     key = (api_key_input or "").strip()
     if key:
-        return key
+        return key, "✅ manual input"
     key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
     if key:
-        return key
+        return key, "✅ environment variable (DASHSCOPE_API_KEY)"
     node_dir = os.path.dirname(os.path.abspath(__file__))
     for rel in _ENV_RELATIVE_PATHS:
         key = _read_env_file(os.path.normpath(os.path.join(node_dir, rel)))
         if key:
-            return key
-    return ""
+            return key, "✅ .env file"
+    return "", "❌ no key found"
 
 
 def _base_url(workspace_id: str) -> str:
@@ -264,8 +264,8 @@ class WanVideo:
             },
         }
 
-    RETURN_TYPES  = (VIDEO,)
-    RETURN_NAMES  = ("video",)
+    RETURN_TYPES  = (VIDEO, "STRING")
+    RETURN_NAMES  = ("video", "key_status")
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/Alibaba"
     OUTPUT_NODE   = False
@@ -288,7 +288,7 @@ class WanVideo:
         max_wait:        int  = 600,
         poll_interval:   int  = 15,
     ):
-        key = _resolve_key(api_key)
+        key, key_status = _resolve_key(api_key)
         if not key:
             raise EnvironmentError(
                 "No DashScope API key found. Pass it via the api_key input, set "
@@ -352,7 +352,7 @@ class WanVideo:
         video_url = _submit_and_poll(base, body, key, max_wait, poll_interval, retries=0, label="WanVideo")
         filepath = _download_video(video_url)
         log.info(f"[WanVideo] downloaded to {filepath}")
-        return ({"filepath": filepath, "mime_type": "video/mp4"},)
+        return ({"filepath": filepath, "mime_type": "video/mp4"}, key_status)
 
 
 # ---------------------------------------------------------------------------
@@ -415,8 +415,8 @@ class WanVideoEdit:
             },
         }
 
-    RETURN_TYPES  = (VIDEO,)
-    RETURN_NAMES  = ("video",)
+    RETURN_TYPES  = (VIDEO, "STRING")
+    RETURN_NAMES  = ("video", "key_status")
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/Alibaba"
     OUTPUT_NODE   = False
@@ -445,7 +445,7 @@ class WanVideoEdit:
         if not prompt.strip():
             raise ValueError("WanVideoEdit: prompt (edit instruction) is required.")
 
-        key = _resolve_key(api_key)
+        key, key_status = _resolve_key(api_key)
         if not key:
             raise EnvironmentError(
                 "No DashScope API key found. Pass it via the api_key input, set "
@@ -485,7 +485,7 @@ class WanVideoEdit:
         video_url = _submit_and_poll(base, body, key, max_wait, poll_interval, retries=0, label="WanVideoEdit")
         filepath = _download_video(video_url)
         log.info(f"[WanVideoEdit] downloaded to {filepath}")
-        return ({"filepath": filepath, "mime_type": "video/mp4"},)
+        return ({"filepath": filepath, "mime_type": "video/mp4"}, key_status)
 
 
 # ---------------------------------------------------------------------------
