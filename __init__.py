@@ -23,6 +23,8 @@ _NODE_FILES = [
     ("nodes/gemini_veo/node.py",         "gemini_veo"),
     ("nodes/openai_image/node.py",       "openai_image"),
     ("nodes/save_image_no_meta/node.py", "save_image_no_meta"),
+    ("nodes/wan_image/node.py",          "wan_image"),
+    ("nodes/wan_video/node.py",          "wan_video"),
 ]
 
 for _rel, _label in _NODE_FILES:

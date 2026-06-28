@@ -15,7 +15,9 @@ Ranomany-ComfyNodes/
     ├── gemini_image/            # Image generation / editing via Gemini
     ├── gemini_veo/              # Video generation via Veo + Save Video node
     ├── openai_image/            # Image generation / editing via OpenAI gpt-image-2
-    └── save_image_no_meta/      # Save PNG without workflow metadata
+    ├── save_image_no_meta/      # Save PNG without workflow metadata
+    ├── wan_image/               # Image generation / editing via Alibaba Wan 2.7
+    └── wan_video/               # Video generation / editing via Alibaba Wan 2.7
 ```
 
 ---
@@ -25,10 +27,13 @@ Ranomany-ComfyNodes/
 Copy the subdirectory (or directories) you need into your ComfyUI `custom_nodes/` folder:
 
 ```bash
-cp -r nodes/api_key         /path/to/ComfyUI/custom_nodes/
-cp -r nodes/gemini_image    /path/to/ComfyUI/custom_nodes/
-cp -r nodes/gemini_veo      /path/to/ComfyUI/custom_nodes/
+cp -r nodes/api_key            /path/to/ComfyUI/custom_nodes/
+cp -r nodes/gemini_image       /path/to/ComfyUI/custom_nodes/
+cp -r nodes/gemini_veo         /path/to/ComfyUI/custom_nodes/
+cp -r nodes/openai_image       /path/to/ComfyUI/custom_nodes/
 cp -r nodes/save_image_no_meta /path/to/ComfyUI/custom_nodes/
+cp -r nodes/wan_image          /path/to/ComfyUI/custom_nodes/
+cp -r nodes/wan_video          /path/to/ComfyUI/custom_nodes/
 ```
 
 Install dependencies:
@@ -37,6 +42,7 @@ Install dependencies:
 pip install google-genai>=1.0.0   # required by gemini_image and gemini_veo
 pip install openai>=1.0.0          # required by openai_image
 pip install mutagen>=1.47.0        # optional — enables MP4 metadata embedding in Save Video
+# wan_image and wan_video use stdlib only — no extra dependencies
 ```
 
 ### Pinning by SHA in a Dockerfile
@@ -45,11 +51,13 @@ pip install mutagen>=1.47.0        # optional — enables MP4 metadata embedding
 ARG RANOMANY_COMFYNODES_SHA=<commit-sha>
 RUN git clone https://github.com/EldadRan/Ranomany-ComfyNodes.git /tmp/cn && \
     cd /tmp/cn && git checkout "$RANOMANY_COMFYNODES_SHA" && \
-    cp -r /tmp/cn/nodes/api_key         /comfyui/custom_nodes/ && \
-    cp -r /tmp/cn/nodes/gemini_image    /comfyui/custom_nodes/ && \
-    cp -r /tmp/cn/nodes/gemini_veo      /comfyui/custom_nodes/ && \
-    cp -r /tmp/cn/nodes/openai_image    /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/api_key            /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/gemini_image       /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/gemini_veo         /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/openai_image       /comfyui/custom_nodes/ && \
     cp -r /tmp/cn/nodes/save_image_no_meta /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/wan_image          /comfyui/custom_nodes/ && \
+    cp -r /tmp/cn/nodes/wan_video          /comfyui/custom_nodes/ && \
     pip install google-genai>=1.0.0 openai>=1.0.0 mutagen>=1.47.0
 ```
 
@@ -286,6 +294,199 @@ ComfyUI's stock `SaveImage` embeds the entire workflow JSON in PNG `tEXt` chunks
 | `images` | IMAGE | Same as core `SaveImage` |
 | `filename_prefix` | STRING | Same as core `SaveImage` |
 | `extra_metadata` | STRING | Optional JSON object — each key/value is written as a PNG `tEXt` chunk. Pass `""` or `"{}"` for fully clean output. Example: `{"seed": "12345", "model": "flux2"}` |
+
+---
+
+### `wan_image` — Wan Image Generate
+
+Generate images from text, or edit/compose existing images via Alibaba Cloud Wan 2.7. Outputs a standard ComfyUI `IMAGE` batch tensor.
+
+**Category:** `Ranomany/Alibaba`
+**Dependencies:** none (Python stdlib only)
+**API key env var:** `DASHSCOPE_API_KEY`
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | STRING | — | Text description (up to 5000 chars). Required unless `image` is supplied. |
+| `model` | dropdown | `wan2.7-image-pro` | `wan2.7-image-pro` (higher quality, supports thinking & 4K) or `wan2.7-image` |
+| `image` | IMAGE | *(optional)* | Input image(s) for editing/composition. Each frame in a batch becomes a separate image in the request (max 9). |
+| `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use `DASHSCOPE_API_KEY` env var / `.env` |
+| `workspace_id` | STRING | *(optional)* | Singapore workspace ID (e.g. `ws-xxxxxxxx`). Leave blank to use the Beijing endpoint. |
+| `size` | dropdown | `2K` | `1K`, `2K`, `4K` (4K: pro model + text-to-image only) |
+| `n` | INT (1–4) | `1` | Number of images to generate per call |
+| `thinking_mode` | dropdown | `true` | Enhanced quality pass. Pro model + text-to-image only. Increases latency. |
+| `enable_sequential` | dropdown | `false` | Image set mode — generates a coherent sequence from one prompt |
+| `watermark` | dropdown | `false` | Add/suppress Alibaba watermark |
+| `seed` | INT (-1–2147483647) | `-1` | Random seed. `-1` = random each run (omitted from request). |
+| `retries` | INT (0–3) | `0` | Auto-retry on transient 429/5xx errors with exponential backoff |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `images` | IMAGE | Batch tensor (B×H×W×3, float32, 0–1) |
+
+#### Mode auto-detection
+
+- No `image` connected → **text-to-image**
+- `image` connected → **image editing / composition** (prompt + up to 9 input frames)
+- `enable_sequential=true` → **image set generation** (coherent sequence)
+
+#### Example workflows
+
+**Text to image:**
+```
+[API Key] key_name=DASHSCOPE_API_KEY ──api_key──► [Wan Image Generate]
+                    prompt = "A misty Japanese mountain temple at dawn, photorealistic"
+                    model  = wan2.7-image-pro  size = 2K
+                    ──images──► [Save Image (no workflow metadata)]
+```
+
+**Image editing:**
+```
+[Load Image] ──image──► [Wan Image Generate]
+                prompt = "Convert to pencil sketch style, keep the composition"
+                ──images──► [Preview Image]
+```
+
+**`.env` file:**
+```
+DASHSCOPE_API_KEY=sk-...
+```
+
+---
+
+### `wan_video` — Wan Video Generate
+
+Encapsulates four Wan 2.7 video generation modes in a single node. Mode is selected automatically based on which inputs are connected.
+
+**Category:** `Ranomany/Alibaba`
+**Dependencies:** none (Python stdlib only)
+**API key env var:** `DASHSCOPE_API_KEY`
+
+#### Mode auto-detection
+
+| Connected inputs | Mode | Model |
+|---|---|---|
+| `prompt` only | **Text-to-video** | `wan2.7-t2v` |
+| `first_frame` | **Image-to-video (i2v)** | `wan2.7-i2v-2026-04-25` |
+| `first_frame` + `last_frame` | **First+last frame (r2v)** | `wan2.7-i2v-2026-04-25` |
+| `first_clip` | **Video continuation** | `wan2.7-i2v-2026-04-25` |
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | STRING | — | Video description. Required for t2v; optional for i2v/r2v/continuation. |
+| `first_frame` | IMAGE | *(optional)* | Anchors the first frame. Triggers i2v or r2v mode. |
+| `last_frame` | IMAGE | *(optional)* | Anchors the last frame. Only used with `first_frame` (r2v mode). |
+| `first_clip` | VIDEO | *(optional)* | Source video to continue. Triggers continuation mode. |
+| `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` |
+| `workspace_id` | STRING | *(optional)* | Singapore workspace ID. Leave blank for Beijing. |
+| `negative_prompt` | STRING | *(optional)* | Content to exclude (max 500 chars) |
+| `resolution` | dropdown | `1080P` | `1080P`, `720P` |
+| `ratio` | dropdown | `16:9` | Aspect ratio — applies to t2v only. i2v/r2v/continuation follow the input image/clip. |
+| `duration` | INT (2–15) | `5` | Output length in seconds |
+| `prompt_extend` | dropdown | `true` | Let the model rewrite short prompts to improve quality |
+| `watermark` | dropdown | `false` | Add/suppress Alibaba watermark |
+| `seed` | INT (-1–2147483647) | `-1` | Random seed. `-1` = random each run. |
+| `max_wait` | INT (60–1800) | `600` | Seconds before timing out |
+| `poll_interval` | INT (5–60) | `15` | Seconds between status polls |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `video` | VIDEO | Filepath dict. Wire to **Save Video** to write the MP4 to disk. |
+
+#### Example workflows
+
+**Text-to-video:**
+```
+[API Key] key_name=DASHSCOPE_API_KEY ──api_key──► [Wan Video Generate]
+                    prompt     = "A lone surfer rides a massive wave at sunset, slow motion"
+                    resolution = 1080P   ratio = 16:9   duration = 5
+                    ──video──► [Save Video]
+```
+
+**Image-to-video:**
+```
+[Load Image] ──first_frame──► [Wan Video Generate]
+                prompt = "The camera slowly pans to reveal the surrounding landscape"
+                ──video──► [Save Video]
+```
+
+**First+last frame (r2v):**
+```
+[Load Image] ──first_frame──► [Wan Video Generate]
+[Load Image] ──last_frame───►     prompt = "A smooth transition between the two scenes"
+                                  ──video──► [Save Video]
+```
+
+**Video continuation:**
+```
+[Wan Video Generate] ──video──► [Wan Video Generate]  (wire to first_clip)
+                                    prompt = "The character continues walking into the forest"
+                                    ──video──► [Save Video]
+```
+
+---
+
+### `wan_video_edit` — Wan Video Edit
+
+Edit an existing video with a text instruction, optionally guided by reference images for style or character consistency.
+
+**Category:** `Ranomany/Alibaba`
+**Dependencies:** none (Python stdlib only)
+**API key env var:** `DASHSCOPE_API_KEY`
+**Model:** `wan2.7-videoedit`
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | STRING | — | Edit instruction — e.g. `"Convert to claymation style"`, `"Make it rain"`. Required. |
+| `video` | VIDEO | — | The video to edit. Required. |
+| `reference_image_1` | IMAGE | *(optional)* | Reference image for style / character transfer |
+| `reference_image_2` | IMAGE | *(optional)* | Additional reference (up to 4 total) |
+| `reference_image_3` | IMAGE | *(optional)* | |
+| `reference_image_4` | IMAGE | *(optional)* | |
+| `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` |
+| `workspace_id` | STRING | *(optional)* | Singapore workspace ID. Leave blank for Beijing. |
+| `negative_prompt` | STRING | *(optional)* | Content to exclude from the output |
+| `resolution` | dropdown | `1080P` | `1080P`, `720P` |
+| `ratio` | dropdown | `auto` | `auto` follows the input video's aspect ratio. Or pick a fixed ratio: `16:9`, `9:16`, `1:1`, `4:3`, `3:4`. |
+| `duration` | INT (0–10) | `0` | Output duration in seconds. `0` = keep input video's duration. `2–10` to truncate. |
+| `audio_setting` | dropdown | `auto` | `auto` = model decides audio treatment; `origin` = keep the original audio track |
+| `prompt_extend` | dropdown | `true` | Let the model expand short prompts |
+| `watermark` | dropdown | `false` | Add/suppress Alibaba watermark |
+| `seed` | INT (-1–2147483647) | `-1` | Random seed |
+| `max_wait` | INT (60–1800) | `600` | Seconds before timing out |
+| `poll_interval` | INT (5–60) | `15` | Seconds between status polls |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `video` | VIDEO | Filepath dict. Wire to **Save Video** to write the MP4 to disk. |
+
+#### Example workflows
+
+**Style transfer:**
+```
+[Wan Video Generate] ──video──► [Wan Video Edit]
+                                    prompt = "Convert to claymation style, keep the motion"
+                                    ──video──► [Save Video]
+```
+
+**Character-consistent edit with reference:**
+```
+[Load Video] ──video─────────────► [Wan Video Edit]
+[Load Image] ──reference_image_1──►    prompt = "Replace the actor with this character"
+                                        ──video──► [Save Video]
+```
 
 ---
 
