@@ -15,6 +15,7 @@ Restart: os._exit(0) — relies on systemd Restart=always to bring ComfyUI back.
 import asyncio
 import hmac
 import os
+import signal
 import sys
 import time
 from pathlib import Path
@@ -75,7 +76,7 @@ def _check_password(body: dict) -> bool:
 
 
 def _schedule_exit() -> None:
-    asyncio.get_event_loop().call_later(1.0, os._exit, 0)
+    asyncio.get_event_loop().call_later(1.0, lambda: os.kill(os.getpid(), signal.SIGTERM))
 
 
 async def _run_git(*args) -> tuple:
