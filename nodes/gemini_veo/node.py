@@ -321,7 +321,7 @@ class SaveVideo:
     RETURN_TYPES  = ("STRING",)
     RETURN_NAMES  = ("filepath",)
     FUNCTION      = "save"
-    CATEGORY      = "Ranomany"
+    CATEGORY      = "Ranomany/Utils"
     OUTPUT_NODE   = True
 
     def save(self, video: dict, filename_prefix: str = "video", extra_metadata: str = ""):

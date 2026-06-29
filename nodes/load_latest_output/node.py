@@ -18,6 +18,24 @@ import folder_paths
 _EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
+def _list_input_images() -> list[str]:
+    input_dir = folder_paths.get_input_directory()
+    if not os.path.isdir(input_dir):
+        return [""]
+    files = sorted(
+        f for f in os.listdir(input_dir)
+        if os.path.splitext(f)[1].lower() in _EXTS
+    )
+    return files or [""]
+
+
+def _resolve_input_path(image: str) -> str:
+    try:
+        return folder_paths.get_annotated_filepath(image)
+    except Exception:
+        return os.path.join(folder_paths.get_input_directory(), image)
+
+
 def _find_latest(folder: str) -> str | None:
     best_path = None
     best_mtime = -1.0
@@ -58,25 +76,24 @@ class LoadLatestOutput:
 
     @classmethod
     def INPUT_TYPES(cls):
-        input_images = sorted(folder_paths.get_filename_list("input"))
         return {
             "required": {
                 "source": (["latest output", "pick image"], {"default": "latest output"}),
-                "image":  (input_images, {"image_upload": True}),
+                "image":  (_list_input_images(), {"image_upload": True}),
             },
         }
 
     RETURN_TYPES  = ("IMAGE", "MASK")
     RETURN_NAMES  = ("image", "mask")
     FUNCTION      = "load"
-    CATEGORY      = "Ranomany"
+    CATEGORY      = "Ranomany/Utils"
     OUTPUT_NODE   = True
 
     @classmethod
     def IS_CHANGED(cls, source, image):
         if source == "latest output":
             return float("nan")
-        image_path = folder_paths.get_annotated_filepath(image)
+        image_path = _resolve_input_path(image)
         m = hashlib.sha256()
         try:
             with open(image_path, "rb") as f:
@@ -101,7 +118,7 @@ class LoadLatestOutput:
                 "type": "output",
             }
         else:
-            path = folder_paths.get_annotated_filepath(image)
+            path = _resolve_input_path(image)
             tensor, mask = _load_image(path)
             input_dir = folder_paths.get_input_directory()
             rel = os.path.relpath(path, input_dir)
@@ -122,5 +139,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RanomanyLoadLatestOutput": "Load Latest Output",
+    "RanomanyLoadLatestOutput": "Load Image Edit",
 }

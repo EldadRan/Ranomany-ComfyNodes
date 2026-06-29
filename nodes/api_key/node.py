@@ -91,7 +91,7 @@ class APIKey:
     RETURN_TYPES  = ("STRING", "STRING")
     RETURN_NAMES  = ("api_key", "status")
     FUNCTION      = "resolve"
-    CATEGORY      = "Ranomany"
+    CATEGORY      = "Ranomany/Utils"
     OUTPUT_NODE   = False
 
     @classmethod
