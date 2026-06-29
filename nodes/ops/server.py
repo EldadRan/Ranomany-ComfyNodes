@@ -44,8 +44,30 @@ def _log(action: str, email: str, extra: str = "") -> None:
         pass
 
 
+def _read_admin_password() -> str:
+    """Read RANOMANY_ADMIN_PASSWORD from env var or .env file (same search as other nodes)."""
+    val = os.environ.get("RANOMANY_ADMIN_PASSWORD", "").strip()
+    if val:
+        return val
+    for search_dir in [_REPO, _REPO.parent, _REPO.parent.parent]:
+        env_path = search_dir / ".env"
+        if not env_path.is_file():
+            continue
+        try:
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                if k.strip() == "RANOMANY_ADMIN_PASSWORD":
+                    return v.strip().strip('"').strip("'")
+        except OSError:
+            pass
+    return ""
+
+
 def _check_password(body: dict) -> bool:
-    expected = os.environ.get("RANOMANY_ADMIN_PASSWORD", "")
+    expected = _read_admin_password()
     given = body.get("password", "")
     if not expected:
         return False
