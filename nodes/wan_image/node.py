@@ -54,7 +54,7 @@ _IMAGE_POLL_MAX  = 300   # seconds
 _IMAGE_POLL_INTERVAL = 5  # seconds
 
 
-def _read_env_file(path: str) -> str:
+def _read_env_var(path: str, var_name: str) -> str:
     env_path = os.path.join(path, ".env")
     if not os.path.isfile(env_path):
         return ""
@@ -65,30 +65,37 @@ def _read_env_file(path: str) -> str:
                 if line.startswith("#") or "=" not in line:
                     continue
                 k, _, v = line.partition("=")
-                if k.strip() == "DASHSCOPE_API_KEY":
+                if k.strip() == var_name:
                     return v.strip().strip('"').strip("'")
     except OSError:
         pass
     return ""
 
 
-def _resolve_key(api_key_input: str) -> tuple:
-    key = (api_key_input or "").strip()
-    if key:
-        return key, "✅ manual input"
-    key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
-    if key:
-        return key, "✅ environment variable (DASHSCOPE_API_KEY)"
+def _resolve_env(var_name: str, manual_value: str = "") -> str:
+    val = (manual_value or "").strip()
+    if val:
+        return val
+    val = os.environ.get(var_name, "").strip()
+    if val:
+        return val
     node_dir = os.path.dirname(os.path.abspath(__file__))
     for rel in _ENV_RELATIVE_PATHS:
-        key = _read_env_file(os.path.normpath(os.path.join(node_dir, rel)))
-        if key:
-            return key, "✅ .env file"
+        val = _read_env_var(os.path.normpath(os.path.join(node_dir, rel)), var_name)
+        if val:
+            return val
+    return ""
+
+
+def _resolve_key(api_key_input: str) -> tuple:
+    key = _resolve_env("DASHSCOPE_API_KEY", api_key_input)
+    if key:
+        return key, "✅ API key found"
     return "", "❌ no key found"
 
 
 def _base_url(workspace_id: str) -> str:
-    ws = (workspace_id or "").strip()
+    ws = _resolve_env("DASHSCOPE_WORKSPACE_ID", workspace_id)
     if ws:
         return f"https://{ws}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
     return "https://dashscope.aliyuncs.com/api/v1"
