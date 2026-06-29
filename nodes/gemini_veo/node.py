@@ -120,7 +120,7 @@ class GeminiVeo:
                 "negative_prompt": ("STRING", {"multiline": False, "default": ""}),
                 "api_key":         ("STRING", {"default": "", "password": True,
                                     "tooltip": "Leave blank to use GEMINI_API_KEY env var or .env file."}),
-                "max_wait":        ("INT", {"default": 600, "min": 60, "max": 1800, "step": 30}),
+                "max_wait":        ("INT", {"default": 1200, "min": 60, "max": 3600, "step": 30}),
                 "poll_interval":   ("INT", {"default": 10,  "min": 5,  "max": 60,   "step": 5}),
             },
         }
