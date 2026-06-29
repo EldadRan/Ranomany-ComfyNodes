@@ -1,12 +1,11 @@
 """
-LoadLatestOutput — ComfyUI node that loads either:
-  • the most recently saved image from the output directory (default), or
-  • a manually chosen image from the input folder (like standard LoadImage).
+LoadImageEdit — looks and feels like the built-in Load Image node but on every
+workflow execution it automatically loads the newest image from the output folder.
 
-Outputs IMAGE + MASK with an in-node preview.
+The image picker widget is present for visual parity; its value is ignored at
+runtime — the node always returns the latest generated file.
 """
 
-import hashlib
 import os
 
 import numpy as np
@@ -27,13 +26,6 @@ def _list_input_images() -> list[str]:
         if os.path.splitext(f)[1].lower() in _EXTS
     )
     return files or [""]
-
-
-def _resolve_input_path(image: str) -> str:
-    try:
-        return folder_paths.get_annotated_filepath(image)
-    except Exception:
-        return os.path.join(folder_paths.get_input_directory(), image)
 
 
 def _find_latest(folder: str) -> str | None:
@@ -61,7 +53,7 @@ def _load_image(path: str):
     if img.mode == "RGBA":
         rgb = img.convert("RGB")
         alpha = np.array(img)[:, :, 3].astype(np.float32) / 255.0
-        mask = torch.from_numpy(1.0 - alpha).unsqueeze(0)  # 1×H×W
+        mask = torch.from_numpy(1.0 - alpha).unsqueeze(0)
     else:
         rgb = img.convert("RGB")
         h, w = rgb.size[1], rgb.size[0]
@@ -72,14 +64,13 @@ def _load_image(path: str):
     return tensor, mask
 
 
-class LoadLatestOutput:
+class LoadImageEdit:
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "source": (["latest output", "pick image"], {"default": "latest output"}),
-                "image":  (_list_input_images(), {"image_upload": True}),
+                "image": (_list_input_images(), {"image_upload": True}),
             },
         }
 
@@ -90,43 +81,26 @@ class LoadLatestOutput:
     OUTPUT_NODE   = True
 
     @classmethod
-    def IS_CHANGED(cls, source, image):
-        if source == "latest output":
-            return float("nan")
-        image_path = _resolve_input_path(image)
-        m = hashlib.sha256()
-        try:
-            with open(image_path, "rb") as f:
-                m.update(f.read())
-        except OSError:
-            return float("nan")
-        return m.digest().hex()
+    def IS_CHANGED(cls, image):
+        return float("nan")
 
-    def load(self, source: str, image: str):
-        if source == "latest output":
-            output_dir = folder_paths.get_output_directory()
-            path = _find_latest(output_dir)
-            if path is None:
-                raise RuntimeError(
-                    "LoadLatestOutput: no image files found in the output directory."
-                )
-            tensor, mask = _load_image(path)
-            rel = os.path.relpath(path, output_dir)
-            ui_image = {
-                "filename": os.path.basename(rel),
-                "subfolder": os.path.dirname(rel),
-                "type": "output",
-            }
-        else:
-            path = _resolve_input_path(image)
-            tensor, mask = _load_image(path)
-            input_dir = folder_paths.get_input_directory()
-            rel = os.path.relpath(path, input_dir)
-            ui_image = {
-                "filename": os.path.basename(rel),
-                "subfolder": os.path.dirname(rel),
-                "type": "input",
-            }
+    def load(self, image: str):
+        output_dir = folder_paths.get_output_directory()
+        path = _find_latest(output_dir)
+
+        if path is None:
+            raise RuntimeError(
+                "LoadImageEdit: no image files found in the output directory."
+            )
+
+        tensor, mask = _load_image(path)
+
+        rel = os.path.relpath(path, output_dir)
+        ui_image = {
+            "filename": os.path.basename(rel),
+            "subfolder": os.path.dirname(rel),
+            "type": "output",
+        }
 
         return {
             "ui": {"images": [ui_image]},
@@ -135,9 +109,9 @@ class LoadLatestOutput:
 
 
 NODE_CLASS_MAPPINGS = {
-    "RanomanyLoadLatestOutput": LoadLatestOutput,
+    "RanomanyLoadImageEdit": LoadImageEdit,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RanomanyLoadLatestOutput": "Load Image Edit",
+    "RanomanyLoadImageEdit": "Load Image Edit",
 }
