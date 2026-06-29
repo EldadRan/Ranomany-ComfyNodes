@@ -235,26 +235,18 @@ function mountPanel(el) {
 }
 
 // ── Register sidebar tab ───────────────────────────────────────────────────────
+// Must be inside setup() — extensionManager is not ready at module load time.
 
-const TAB = {
-    id: "ranomany.ops",
-    icon: "pi pi-cog",
-    title: "Ranomany Ops",
-    tooltip: "Ranomany Ops — restart, update, rollback",
-    type: "custom",
-    render: mountPanel,
-};
-
-if (app.extensionManager?.registerSidebarTab) {
-    app.extensionManager.registerSidebarTab(TAB);
-} else {
-    // Fallback for older ComfyUI builds — inject a panel via registerExtension
-    app.registerExtension({
-        name: "Ranomany.OpsDock",
-        async setup() {
-            if (app.extensionManager?.registerSidebarTab) {
-                app.extensionManager.registerSidebarTab(TAB);
-            }
-        },
-    });
-}
+app.registerExtension({
+    name: "Ranomany.OpsDock",
+    async setup() {
+        app.extensionManager.registerSidebarTab({
+            id: "ranomany.ops",
+            icon: "pi pi-cog",
+            title: "Ranomany Ops",
+            tooltip: "Ranomany Ops — restart, update, rollback",
+            type: "custom",
+            render: mountPanel,
+        });
+    },
+});
