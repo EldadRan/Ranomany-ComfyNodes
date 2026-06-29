@@ -40,6 +40,12 @@ for _rel, _label in _NODE_FILES:
 
 print(f"[Ranomany-ComfyNodes] Registered nodes: {list(NODE_CLASS_MAPPINGS.keys())}")
 
+try:
+    _load("nodes/ops/server.py")
+    print("[Ranomany-ComfyNodes] ops routes registered")
+except Exception:
+    print(f"[Ranomany-ComfyNodes] ops routes failed:\n{traceback.format_exc()}")
+
 WEB_DIRECTORY = "./web"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
