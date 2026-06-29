@@ -18,7 +18,7 @@ The node always re-evaluates so the status badge stays current.
 
 import os
 
-_ENV_RELATIVE_PATHS = [".", "..", "../.."]
+_ENV_RELATIVE_PATHS = [".", "..", "../..", "../../..", "../../../.."]
 
 
 def _read_env_file(directory: str, key_name: str) -> str:

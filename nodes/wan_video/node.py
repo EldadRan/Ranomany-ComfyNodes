@@ -50,7 +50,7 @@ _RETRY_STATUS  = {429, 500, 502, 503, 504}
 _RETRY_DELAYS  = (2, 5, 12)
 _RETRY_PHRASES = ("503", "502", "504", "500", "UNAVAILABLE", "Service Unavailable", "rate_limit")
 
-_ENV_RELATIVE_PATHS = [".", "..", "../.."]
+_ENV_RELATIVE_PATHS = [".", "..", "../..", "../../..", "../../../.."]
 
 _VIDEO_PATH = "services/aigc/video-generation/video-synthesis"
 _TASK_PATH  = "tasks"

@@ -41,7 +41,7 @@ _RETRY_DELAYS  = (2, 5, 12)
 _RETRY_PHRASES = ("503", "502", "504", "500", "UNAVAILABLE", "Service Unavailable")
 
 # .env search path: node dir → custom_nodes/ → ComfyUI root
-_ENV_RELATIVE_PATHS = [".", "..", "../.."]
+_ENV_RELATIVE_PATHS = [".", "..", "../..", "../../..", "../../../.."]
 
 
 def _read_env_file(path: str) -> str:

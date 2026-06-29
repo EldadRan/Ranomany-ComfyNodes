@@ -36,7 +36,7 @@ VIDEO_MODELS = [
     "veo-3.1-lite-generate-preview",
 ]
 
-_ENV_RELATIVE_PATHS = [".", "..", "../.."]
+_ENV_RELATIVE_PATHS = [".", "..", "../..", "../../..", "../../../.."]
 
 
 def _read_env_file(path: str) -> str:
