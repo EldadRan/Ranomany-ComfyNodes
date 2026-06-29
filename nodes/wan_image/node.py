@@ -90,7 +90,7 @@ def _resolve_key(api_key_input: str) -> tuple:
 def _base_url(workspace_id: str) -> str:
     ws = (workspace_id or "").strip()
     if ws:
-        return f"https://{ws}.ap-southeast-1.maas.aliyuncs.com/api/v1"
+        return f"https://{ws}.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
     return "https://dashscope.aliyuncs.com/api/v1"
 
 
