@@ -242,13 +242,13 @@ class WanImage:
                     "default": "",
                     "tooltip": "Singapore workspace ID (e.g. ws-xxxxxxxx). Leave blank for Beijing endpoint.",
                 }),
-                "size":             ("STRING", {
-                    "default": "2K",
-                    "tooltip": (
-                        "Preset: 1K (1024×1024), 2K (2048×2048), 4K (4096×4096 — pro t2i only).\n"
-                        "Custom: W*H in pixels, e.g. 1280*720 or 768*1366.\n"
-                        "Ratio limit: 8:1 max. Pixel limit: 768²–4096² (t2i) or 768²–2048² (editing)."
-                    ),
+                "width":            ("INT", {
+                    "default": 1024, "min": 64, "max": 4096, "step": 8,
+                    "tooltip": "Output width in pixels (t2i). Auto-read from input image when image editing.",
+                }),
+                "height":           ("INT", {
+                    "default": 1024, "min": 64, "max": 4096, "step": 8,
+                    "tooltip": "Output height in pixels (t2i). Auto-read from input image when image editing.",
                 }),
                 "n":                ("INT", {"default": 1, "min": 1, "max": 4, "step": 1,
                                              "tooltip": "Number of images to generate (1-4, or up to 12 in image set mode)."}),
@@ -282,7 +282,8 @@ class WanImage:
         image:            torch.Tensor = None,
         api_key:          str  = "",
         workspace_id:     str  = "",
-        size:             str  = "2K",
+        width:            int  = 1024,
+        height:           int  = 1024,
         n:                int  = 1,
         thinking_mode:    str  = "true",
         enable_sequential: str = "false",
@@ -303,8 +304,15 @@ class WanImage:
 
         base = _base_url(workspace_id)
 
-        # Validate and normalise size before touching the API
-        validated_size = _validate_size(size, has_image=image is not None)
+        # When an image is connected, use its dimensions instead of the widgets
+        if image is not None:
+            if image.ndim == 3:
+                image = image.unsqueeze(0)
+            h_px, w_px = image.shape[1], image.shape[2]
+        else:
+            w_px, h_px = int(width), int(height)
+
+        validated_size = _validate_size(f"{w_px}*{h_px}", has_image=image is not None)
 
         # Build messages content
         content = []
@@ -312,8 +320,6 @@ class WanImage:
             content.append({"text": prompt.strip()})
 
         if image is not None:
-            if image.ndim == 3:
-                image = image.unsqueeze(0)
             n_frames = min(image.shape[0], 9)  # API limit: max 9 images
             for i in range(n_frames):
                 content.append({"image": _tensor_to_data_url(image[i])})
@@ -343,7 +349,7 @@ class WanImage:
         def _call():
             # Try synchronous first
             sync_url = f"{base}/{_SYNC_PATH}"
-            log.info(f"[WanImage] POST {sync_url} model={model} size={size} n={n}")
+            log.info(f"[WanImage] POST {sync_url} model={model} size={validated_size} n={n}")
             resp = _http_post(sync_url, body, key, async_mode=False)
 
             output = resp.get("output", {})
