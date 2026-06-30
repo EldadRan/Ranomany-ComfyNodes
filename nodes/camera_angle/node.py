@@ -1,11 +1,16 @@
 class CameraAngle:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {
-            "azimuth":   ("INT",   {"default": 0,   "min": 0,   "max": 359, "step": 1,   "display": "slider"}),
-            "elevation": ("INT",   {"default": 0,   "min": -90, "max": 90,  "step": 1,   "display": "slider"}),
-            "distance":  ("FLOAT", {"default": 5.0, "min": 0.0, "max": 10.0,"step": 0.1, "display": "slider"}),
-        }}
+        return {
+            "required": {
+                "azimuth":   ("INT",   {"default": 0,   "min": 0,   "max": 359, "step": 1,   "display": "slider"}),
+                "elevation": ("INT",   {"default": 0,   "min": -90, "max": 90,  "step": 1,   "display": "slider"}),
+                "distance":  ("FLOAT", {"default": 5.0, "min": 0.0, "max": 10.0,"step": 0.1, "display": "slider"}),
+            },
+            "optional": {
+                "image": ("IMAGE",),
+            },
+        }
 
     RETURN_TYPES  = ("STRING", "STRING", "STRING", "STRING")
     RETURN_NAMES  = ("prompt", "horizontal", "vertical", "shot_size")
@@ -13,7 +18,7 @@ class CameraAngle:
     CATEGORY      = "Ranomany/Utils"
     OUTPUT_NODE   = False
 
-    def generate(self, azimuth, elevation, distance):
+    def generate(self, azimuth, elevation, distance, image=None):
         h = self._horizontal(azimuth)
         v = self._vertical(elevation)
         s = self._shot_size(distance)
