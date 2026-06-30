@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-const THREE_URL = new URL("./vendor/three.module.min.js", import.meta.url).href;
+const THREE_URL = new URL("./three.module.min.js", import.meta.url).href;
 
 // Kick off the Three.js import immediately at module-load time.
 // We do NOT top-level await it — that would block the whole module.
