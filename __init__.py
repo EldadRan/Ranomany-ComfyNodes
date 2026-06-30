@@ -26,6 +26,7 @@ _NODE_FILES = [
     ("nodes/wan_image/node.py",          "wan_image"),
     ("nodes/wan_video/node.py",          "wan_video"),
     ("nodes/load_latest_output/node.py", "load_latest_output"),
+    ("nodes/camera_angle/node.py",       "camera_angle"),
 ]
 
 for _rel, _label in _NODE_FILES:
