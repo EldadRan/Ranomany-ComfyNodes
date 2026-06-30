@@ -42,6 +42,20 @@ cp -r nodes/wan_image          /path/to/ComfyUI/custom_nodes/
 cp -r nodes/wan_video          /path/to/ComfyUI/custom_nodes/
 ```
 
+> **Note — `camera_angle` and `load_latest_output` need the full repo.** Unlike the
+> self-contained API nodes above, the **Camera Angle**, **Camera Angle (Load Image)**, and
+> **Load Image (Edit Mode)** nodes rely on frontend assets served from the repo-root `web/`
+> directory (`camera_angle.bundle.js`, `load_image_from_output.js`, `assets/main.css`) via
+> the root `__init__.py`'s `WEB_DIRECTORY`. Copying just their `nodes/<name>/` subdirectory
+> will register the Python node but **omit its GUI/preview** (and, for Load Image (Edit Mode),
+> the `/ranomany/latest-output` route). To use these nodes, install the whole repo as one
+> custom node:
+>
+> ```bash
+> git clone https://github.com/EldadRan/Ranomany-ComfyNodes.git \
+>     /path/to/ComfyUI/custom_nodes/Ranomany-ComfyNodes
+> ```
+
 Install dependencies:
 
 ```bash
