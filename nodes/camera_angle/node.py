@@ -13,9 +13,40 @@ import os
 import random
 
 import numpy as np
-from PIL import Image
+import torch
+from PIL import Image, ImageOps
 
 import folder_paths
+
+_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _list_input_images() -> list[str]:
+    input_dir = folder_paths.get_input_directory()
+    if not os.path.isdir(input_dir):
+        return []
+    files = [
+        f for f in os.listdir(input_dir)
+        if os.path.isfile(os.path.join(input_dir, f))
+        and os.path.splitext(f)[1].lower() in _EXTS
+    ]
+    return sorted(files)
+
+
+def _load_image(path: str):
+    img = Image.open(path)
+    img = ImageOps.exif_transpose(img)
+    if img.mode == "RGBA":
+        rgb = img.convert("RGB")
+        alpha = np.array(img)[:, :, 3].astype(np.float32) / 255.0
+        mask = torch.from_numpy(1.0 - alpha).unsqueeze(0)
+    else:
+        rgb = img.convert("RGB")
+        h, w = rgb.size[1], rgb.size[0]
+        mask = torch.zeros(1, h, w, dtype=torch.float32)
+    arr = np.array(rgb).astype(np.float32) / 255.0
+    tensor = torch.from_numpy(arr).unsqueeze(0)  # 1×H×W×3
+    return tensor, mask
 
 
 class CameraAngle:
@@ -112,5 +143,62 @@ class CameraAngle:
             return []
 
 
-NODE_CLASS_MAPPINGS        = {"RananomyCameraAngle": CameraAngle}
-NODE_DISPLAY_NAME_MAPPINGS = {"RananomyCameraAngle": "Camera Angle"}
+class CameraAngleEdit(CameraAngle):
+    """Camera Angle + built-in image picker (no IMAGE input port).
+
+    Loads its own image via the native picker and shows it in the 3D scene
+    immediately (web/camera_angle.bundle.js wires the picker -> scene), and
+    outputs the loaded IMAGE/MASK alongside the camera prompt.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                # Must match web/camera_angle.bundle.js so the 3D GUI binds.
+                "horizontal_angle": ("INT",   {"default": 0,   "min": 0,   "max": 360, "step": 1, "display": "slider"}),
+                "vertical_angle":   ("INT",   {"default": 0,   "min": -30, "max": 60,  "step": 1, "display": "slider"}),
+                "zoom":             ("FLOAT", {"default": 5.0, "min": 0.0, "max": 10.0,"step": 0.1,"display": "slider"}),
+                # Native image picker: All / Imported / Generated browser + upload.
+                "image":            (_list_input_images(), {"image_upload": True}),
+            }
+        }
+
+    RETURN_TYPES  = ("STRING", "STRING", "STRING", "STRING", "IMAGE", "MASK")
+    RETURN_NAMES  = ("prompt", "horizontal", "vertical", "shot_size", "image", "mask")
+    FUNCTION      = "generate"
+    CATEGORY      = "Ranomany/Utils"
+    OUTPUT_NODE   = False
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, image, **kwargs):
+        if not folder_paths.exists_annotated_filepath(image):
+            return f"Invalid image file: {image}"
+        return True
+
+    def generate(self, horizontal_angle, vertical_angle, zoom, image):
+        horizontal_angle = max(0, min(360, int(horizontal_angle)))
+        vertical_angle   = max(-30, min(60, int(vertical_angle)))
+        zoom             = max(0.0, min(10.0, float(zoom)))
+
+        h = self._horizontal(horizontal_angle)
+        v = self._vertical(vertical_angle)
+        s = self._shot_size(zoom)
+        prompt = (
+            f"Change the camera to a {s} from a {v}, {h} of the same subject. "
+            f"Preserve identity, materials, and lighting — only change the camera angle and framing."
+        )
+
+        path = folder_paths.get_annotated_filepath(image)
+        img, mask = _load_image(path)
+        return (prompt, h, v, s, img, mask)
+
+
+NODE_CLASS_MAPPINGS = {
+    "RananomyCameraAngle":     CameraAngle,
+    "RanomanyCameraAngleEdit": CameraAngleEdit,
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "RananomyCameraAngle":     "Camera Angle",
+    "RanomanyCameraAngleEdit": "Camera Angle (Edit Mode)",
+}

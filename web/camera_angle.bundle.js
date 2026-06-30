@@ -27620,22 +27620,69 @@ function setupOnPropertyChanged(node, instance) {
     syncWidgetsFromState(node, state);
   };
 }
+function imageWidgetUrl(value) {
+  let v = String(value ?? "").trim();
+  if (!v) return null;
+  let type = "input";
+  const m = v.match(/ \[([^\]]+)\]$/);
+  if (m) {
+    type = m[1];
+    v = v.slice(0, -m[0].length);
+  }
+  let subfolder = "";
+  let filename = v;
+  const i = v.lastIndexOf("/");
+  if (i !== -1) {
+    subfolder = v.slice(0, i);
+    filename = v.slice(i + 1);
+  }
+  const params = new URLSearchParams({ filename, subfolder, type });
+  return api.apiURL(`/view?${params.toString()}`);
+}
+function setupImagePicker(node, instance) {
+  var _a;
+  const apply2 = () => {
+    var _a2;
+    const w2 = (_a2 = node.widgets) == null ? void 0 : _a2.find((widget) => widget.name === "image");
+    instance.exposed.updateImage(imageWidgetUrl(w2 == null ? void 0 : w2.value));
+  };
+  const w = (_a = node.widgets) == null ? void 0 : _a.find((widget) => widget.name === "image");
+  if (w) {
+    const orig = w.callback;
+    w.callback = function(v) {
+      orig == null ? void 0 : orig.call(this, v);
+      apply2();
+    };
+  }
+  const n = node;
+  const origConfigure = n.onConfigure;
+  n.onConfigure = function(...args) {
+    origConfigure == null ? void 0 : origConfigure.apply(this, args);
+    apply2();
+  };
+  apply2();
+  requestAnimationFrame(apply2);
+}
 app.registerExtension({
   name: "Ranomany.CameraAngle",
   nodeCreated(node) {
     var _a;
-    if (((_a = node.constructor) == null ? void 0 : _a.comfyClass) !== "RananomyCameraAngle") {
+    const cls = (_a = node.constructor) == null ? void 0 : _a.comfyClass;
+    const isEdit = cls === "RanomanyCameraAngleEdit";
+    if (cls !== "RananomyCameraAngle" && !isEdit) {
       return;
     }
     const [oldWidth, oldHeight] = node.size;
     node.setSize([Math.max(oldWidth, 350), Math.max(oldHeight, 520)]);
     createCameraWidget(node);
-    setupImageInput(node);
     const inst = instances.get(node);
-    if (inst) {
-      setupOnExecuted(node, inst);
-      setupOnPropertyChanged(node, inst);
+    if (isEdit) {
+      if (inst) setupImagePicker(node, inst);
+    } else {
+      setupImageInput(node);
+      if (inst) setupOnExecuted(node, inst);
     }
+    if (inst) setupOnPropertyChanged(node, inst);
   }
 });
 //# sourceMappingURL=main.js.map

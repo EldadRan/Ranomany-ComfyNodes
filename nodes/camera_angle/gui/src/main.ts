@@ -302,11 +302,60 @@ function setupOnPropertyChanged(
   }
 }
 
+// Build a /view URL from an image picker value like "sub/name.png [output]".
+// Mirrors the frontend's parseImageWidgetValue (split trailing [type] + subfolder).
+function imageWidgetUrl(value: unknown): string | null {
+  let v = String(value ?? '').trim()
+  if (!v) return null
+  let type = 'input'
+  const m = v.match(/ \[([^\]]+)\]$/)
+  if (m) {
+    type = m[1]
+    v = v.slice(0, -m[0].length)
+  }
+  let subfolder = ''
+  let filename = v
+  const i = v.lastIndexOf('/')
+  if (i !== -1) {
+    subfolder = v.slice(0, i)
+    filename = v.slice(i + 1)
+  }
+  const params = new URLSearchParams({ filename, subfolder, type })
+  return api.apiURL(`/view?${params.toString()}`)
+}
+
+// Edit Mode clone: the image comes from its own "image" picker widget (not an
+// IMAGE input port), so push it into the 3D scene immediately — no run needed.
+function setupImagePicker(node: QwenMultiangleNode, instance: QwenInstance): void {
+  const apply = () => {
+    const w = node.widgets?.find(widget => widget.name === 'image')
+    instance.exposed.updateImage(imageWidgetUrl(w?.value))
+  }
+  const w = node.widgets?.find(widget => widget.name === 'image')
+  if (w) {
+    const orig = w.callback
+    w.callback = function (this: unknown, v: unknown) {
+      orig?.call(this, v)
+      apply()
+    }
+  }
+  const n = node as unknown as { onConfigure?: (...a: unknown[]) => void }
+  const origConfigure = n.onConfigure
+  n.onConfigure = function (this: unknown, ...args: unknown[]) {
+    origConfigure?.apply(this, args)
+    apply()
+  }
+  apply()
+  requestAnimationFrame(apply)
+}
+
 app.registerExtension({
   name: 'Ranomany.CameraAngle',
 
   nodeCreated(node: QwenMultiangleNode) {
-    if (node.constructor?.comfyClass !== 'RananomyCameraAngle') {
+    const cls = node.constructor?.comfyClass
+    const isEdit = cls === 'RanomanyCameraAngleEdit'
+    if (cls !== 'RananomyCameraAngle' && !isEdit) {
       return
     }
 
@@ -314,11 +363,13 @@ app.registerExtension({
     node.setSize([Math.max(oldWidth, 350), Math.max(oldHeight, 520)])
 
     createCameraWidget(node)
-    setupImageInput(node)
     const inst = instances.get(node)
-    if (inst) {
-      setupOnExecuted(node, inst)
-      setupOnPropertyChanged(node, inst)
+    if (isEdit) {
+      if (inst) setupImagePicker(node, inst)
+    } else {
+      setupImageInput(node)
+      if (inst) setupOnExecuted(node, inst)
     }
+    if (inst) setupOnPropertyChanged(node, inst)
   }
 })

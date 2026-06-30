@@ -1,25 +1,21 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-// "Load Image (from Outputs)" companion.
+// "Load Image (Edit Mode)" companion.
 //
 // The native app-mode image preview is hardcoded to node.type === "LoadImage"
 // (AppModeWidgetList.vue -> getDropIndicator), so a custom node can't get it.
 // Instead we render our own <img> as a DOM widget — DOM widgets ARE rendered in
-// the app/run panel (NodeWidgets.vue -> WidgetDOM.vue), the same way the Camera
-// Angle 3D widget shows there. That gives a preview in both editor and app mode,
-// fully under our control.
-//
-// Behavior: a plain combo lets the user pick any output image (preview follows
-// the selection); a "refresh / newest" button and an automatic snap on run
-// completion point it at the newest output image.
+// the app/run panel (NodeWidgets.vue -> WidgetDOM.vue), so the preview shows in
+// both the editor and the app builder. The picker itself is the native
+// image_upload widget (All / Imported / Generated browser + upload).
 
 const CLASS = "RanomanyLoadImageEdit";
 
-// Build a /view URL from a combo value like "sub/dir/name.png [output]".
+// Build a /view URL from a picker value like "sub/dir/name.png [output]".
 function viewURL(value) {
     let v = (value || "").trim();
-    let type = "output";
+    let type = "input";
     const m = v.match(/ \[([^\]]+)\]$/);
     if (m) {
         type = m[1];
@@ -51,41 +47,6 @@ function updatePreview(node) {
     }
 }
 
-async function fetchNewest() {
-    try {
-        const r = await api.fetchApi("/ranomany/latest-output");
-        const d = await r.json();
-        return d && d.filename ? d : null;
-    } catch (e) {
-        console.warn("[Ranomany] latest-output failed", e);
-        return null;
-    }
-}
-
-function annotatedValue(d) {
-    const rel = d.subfolder ? `${d.subfolder}/${d.filename}` : d.filename;
-    return `${rel} [output]`;
-}
-
-function applyNewestToNode(node, d) {
-    const w = node.widgets?.find((w) => w.name === "image");
-    if (!w) return;
-    const val = annotatedValue(d);
-    const opts = w.options?.values;
-    if (Array.isArray(opts) && !opts.includes(val)) opts.push(val);
-    if (w.value !== val) {
-        w.value = val;
-        try {
-            w.callback?.(val);
-        } catch {}
-    }
-    updatePreview(node);
-}
-
-function outputLoaderNodes() {
-    return (app.graph?._nodes ?? []).filter((n) => n.comfyClass === CLASS);
-}
-
 app.registerExtension({
     name: "Ranomany.LoadImageFromOutput",
 
@@ -103,7 +64,7 @@ app.registerExtension({
         node.__ranomanyPreviewImg = img;
         node.addDOMWidget("preview", "image-preview", wrap, { serialize: false });
 
-        // Keep the preview in sync when the user picks a different image.
+        // Keep the preview in sync when the user picks/uploads a different image.
         const w = node.widgets?.find((w) => w.name === "image");
         if (w) {
             const orig = w.callback;
@@ -113,15 +74,6 @@ app.registerExtension({
             };
         }
 
-        // Manual "refresh / newest" button (recognized widget -> renders in app mode).
-        node.addWidget("button", "refresh / newest", null, async () => {
-            const d = await fetchNewest();
-            if (d) {
-                applyNewestToNode(node, d);
-                app.graph?.setDirtyCanvas(true, true);
-            }
-        });
-
         // Initial preview (covers values restored from a saved workflow).
         const origConfigure = node.onConfigure;
         node.onConfigure = function () {
@@ -129,17 +81,5 @@ app.registerExtension({
             updatePreview(node);
         };
         requestAnimationFrame(() => updatePreview(node));
-    },
-
-    setup() {
-        // On run completion, snap every instance to the newest output image.
-        api.addEventListener("execution_success", async () => {
-            const nodes = outputLoaderNodes();
-            if (!nodes.length) return;
-            const d = await fetchNewest();
-            if (!d) return;
-            for (const n of nodes) applyNewestToNode(n, d);
-            app.graph?.setDirtyCanvas(true, true);
-        });
     },
 });
