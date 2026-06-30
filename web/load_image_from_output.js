@@ -21,7 +21,10 @@ async function fetchNewest() {
 }
 
 function relPath(d) {
-    return d.subfolder ? `${d.subfolder}/${d.filename}` : d.filename;
+    const rel = d.subfolder ? `${d.subfolder}/${d.filename}` : d.filename;
+    // `[output]` annotation so the preview/`/view` request resolves against the
+    // output folder (matching the combo option values from the backend).
+    return `${rel} [output]`;
 }
 
 function applyNewestToNode(node, d) {

@@ -22,6 +22,12 @@ _EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 def _list_output_images() -> list[str]:
+    """Output-folder images as combo values, annotated `name [output]`.
+
+    The `[output]` annotation is required so the frontend's image preview and
+    /view request resolve against the OUTPUT folder; without it the preview
+    looks in `input/` and fails with "Image does not exist".
+    """
     output_dir = folder_paths.get_output_directory()
     if not os.path.isdir(output_dir):
         return [""]
@@ -32,7 +38,7 @@ def _list_output_images() -> list[str]:
                 rel = os.path.relpath(os.path.join(root, f), output_dir)
                 files.append(rel)
     files.sort()
-    return files or [""]
+    return [f"{rel} [output]" for rel in files] or [""]
 
 
 def _find_latest(folder: str) -> str | None:
