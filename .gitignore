@@ -8,3 +8,7 @@ venv/
 *.egg-info/
 .ruff_cache/
 .mypy_cache/
+
+# Node / GUI build (source is vendored; shipped bundle lives in web/)
+node_modules/
+nodes/camera_angle/gui/js/

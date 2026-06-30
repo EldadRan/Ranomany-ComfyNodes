@@ -6185,22 +6185,29 @@ const translations = {
     resetToDefaults: "Reset to defaults",
     // Azimuth options
     frontView: "front view",
-    frontRightQuarterView: "front-right quarter view",
-    rightSideView: "right side view",
-    backRightQuarterView: "back-right quarter view",
-    backView: "back view",
-    backLeftQuarterView: "back-left quarter view",
-    leftSideView: "left side view",
-    frontLeftQuarterView: "front-left quarter view",
+    frontRightQuarterView: "front-right three-quarter angle",
+    rightSideView: "right side profile",
+    backRightQuarterView: "rear-right three-quarter angle",
+    backView: "rear view",
+    backLeftQuarterView: "rear-left three-quarter angle",
+    leftSideView: "left side profile",
+    frontLeftQuarterView: "front-left three-quarter angle",
     // Elevation options
     lowAngleShot: "low-angle shot",
+    slightLowAngle: "slight low angle",
     eyeLevelShot: "eye-level shot",
-    elevatedShot: "elevated shot",
+    slightHighAngle: "slight high angle",
     highAngleShot: "high-angle shot",
+    overheadHighAngleShot: "overhead high-angle shot",
     // Distance options
+    extremeWideShot: "extreme wide shot",
     wideShot: "wide shot",
+    fullShot: "full shot",
+    mediumLongShot: "medium long shot",
     mediumShot: "medium shot",
-    closeUp: "close-up"
+    closeUp: "close-up",
+    extremeCloseUp: "extreme close-up",
+    macroShot: "macro shot"
   },
   zh: {
     // Dropdown labels
@@ -6224,13 +6231,20 @@ const translations = {
     frontLeftQuarterView: "左前方视角",
     // Elevation options
     lowAngleShot: "仰拍",
+    slightLowAngle: "轻微仰角",
     eyeLevelShot: "平视",
-    elevatedShot: "高角度",
+    slightHighAngle: "轻微俯角",
     highAngleShot: "俯拍",
+    overheadHighAngleShot: "顶部俯拍",
     // Distance options
+    extremeWideShot: "超远景",
     wideShot: "远景",
+    fullShot: "全景",
+    mediumLongShot: "中远景",
     mediumShot: "中景",
-    closeUp: "特写"
+    closeUp: "特写",
+    extremeCloseUp: "大特写",
+    macroShot: "微距"
   },
   ja: {
     // Dropdown labels
@@ -6254,13 +6268,20 @@ const translations = {
     frontLeftQuarterView: "左前方",
     // Elevation options
     lowAngleShot: "ローアングル",
+    slightLowAngle: "やや下から",
     eyeLevelShot: "アイレベル",
-    elevatedShot: "ハイアングル",
-    highAngleShot: "俯瞰",
+    slightHighAngle: "やや上から",
+    highAngleShot: "ハイアングル",
+    overheadHighAngleShot: "俯瞰",
     // Distance options
+    extremeWideShot: "エクストリームワイド",
     wideShot: "ワイドショット",
+    fullShot: "フルショット",
+    mediumLongShot: "ミディアムロング",
     mediumShot: "ミディアムショット",
-    closeUp: "クローズアップ"
+    closeUp: "クローズアップ",
+    extremeCloseUp: "エクストリームクローズアップ",
+    macroShot: "マクロ"
   },
   ko: {
     // Dropdown labels
@@ -6284,13 +6305,20 @@ const translations = {
     frontLeftQuarterView: "좌측 전방",
     // Elevation options
     lowAngleShot: "로우 앵글",
+    slightLowAngle: "약한 로우 앵글",
     eyeLevelShot: "아이 레벨",
-    elevatedShot: "하이 앵글",
-    highAngleShot: "부감",
+    slightHighAngle: "약한 하이 앵글",
+    highAngleShot: "하이 앵글",
+    overheadHighAngleShot: "부감 (오버헤드)",
     // Distance options
+    extremeWideShot: "익스트림 와이드 샷",
     wideShot: "와이드 샷",
+    fullShot: "풀 샷",
+    mediumLongShot: "미디엄 롱 샷",
     mediumShot: "미디엄 샷",
-    closeUp: "클로즈업"
+    closeUp: "클로즈업",
+    extremeCloseUp: "익스트림 클로즈업",
+    macroShot: "매크로 샷"
   }
 };
 let currentLocale = "en";
@@ -6389,14 +6417,21 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
     ];
     const elevationOptions = [
       { key: "lowAngleShot", value: -30 },
+      { key: "slightLowAngle", value: -12 },
       { key: "eyeLevelShot", value: 0 },
-      { key: "elevatedShot", value: 30 },
-      { key: "highAngleShot", value: 60 }
+      { key: "slightHighAngle", value: 13 },
+      { key: "highAngleShot", value: 30 },
+      { key: "overheadHighAngleShot", value: 50 }
     ];
     const distanceOptions = [
-      { key: "wideShot", value: 1 },
-      { key: "mediumShot", value: 4 },
-      { key: "closeUp", value: 8 }
+      { key: "extremeWideShot", value: 0.7 },
+      { key: "wideShot", value: 2 },
+      { key: "fullShot", value: 3 },
+      { key: "mediumLongShot", value: 4.2 },
+      { key: "mediumShot", value: 5.4 },
+      { key: "closeUp", value: 6.7 },
+      { key: "extremeCloseUp", value: 8.5 },
+      { key: "macroShot", value: 9.8 }
     ];
     function findClosestOption(value, options, isAzimuth = false) {
       let closest = options[0].value;
@@ -6413,14 +6448,9 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
       }
       return closest;
     }
-    function findClosestDistanceOption(dist) {
-      if (dist < 2) return 1;
-      if (dist < 6) return 4;
-      return 8;
-    }
     const closestAzimuth = computed(() => findClosestOption(props.azimuth, azimuthOptions, true));
     const closestElevation = computed(() => findClosestOption(props.elevation, elevationOptions));
-    const closestDistance = computed(() => findClosestDistanceOption(props.distance));
+    const closestDistance = computed(() => findClosestOption(props.distance, distanceOptions));
     function onAzimuthSelect(e) {
       emit2("update:azimuth", parseInt(e.target.value, 10));
     }
@@ -6428,7 +6458,7 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
       emit2("update:elevation", parseInt(e.target.value, 10));
     }
     function onDistanceSelect(e) {
-      emit2("update:distance", parseInt(e.target.value, 10));
+      emit2("update:distance", parseFloat(e.target.value));
     }
     return (_ctx, _cache2) => {
       return openBlock(), createElementBlock("div", _hoisted_1$1, [
@@ -6499,7 +6529,7 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
     };
   }
 });
-const ControlPanel = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-b0acfc84"]]);
+const ControlPanel = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-ab2051f9"]]);
 /**
  * @license
  * Copyright 2010-2024 Three.js Authors
@@ -27064,39 +27094,53 @@ class CameraWidget {
     if (hAngle < 22.5 || hAngle >= 337.5) {
       hDirection = "front view";
     } else if (hAngle < 67.5) {
-      hDirection = "front-right quarter view";
+      hDirection = "front-right three-quarter angle";
     } else if (hAngle < 112.5) {
-      hDirection = "right side view";
+      hDirection = "right side profile";
     } else if (hAngle < 157.5) {
-      hDirection = "back-right quarter view";
+      hDirection = "rear-right three-quarter angle";
     } else if (hAngle < 202.5) {
-      hDirection = "back view";
+      hDirection = "rear view";
     } else if (hAngle < 247.5) {
-      hDirection = "back-left quarter view";
+      hDirection = "rear-left three-quarter angle";
     } else if (hAngle < 292.5) {
-      hDirection = "left side view";
+      hDirection = "left side profile";
     } else {
-      hDirection = "front-left quarter view";
+      hDirection = "front-left three-quarter angle";
     }
     let vDirection;
-    if (this.state.elevation < -15) {
+    if (this.state.elevation < -18) {
       vDirection = "low-angle shot";
-    } else if (this.state.elevation < 15) {
+    } else if (this.state.elevation < -6) {
+      vDirection = "slight low angle";
+    } else if (this.state.elevation <= 6) {
       vDirection = "eye-level shot";
-    } else if (this.state.elevation < 45) {
-      vDirection = "elevated shot";
-    } else {
+    } else if (this.state.elevation <= 20) {
+      vDirection = "slight high angle";
+    } else if (this.state.elevation <= 40) {
       vDirection = "high-angle shot";
+    } else {
+      vDirection = "overhead high-angle shot";
     }
     let distance;
-    if (this.state.distance < 2) {
+    if (this.state.distance < 1.5) {
+      distance = "extreme wide shot";
+    } else if (this.state.distance < 2.4) {
       distance = "wide shot";
+    } else if (this.state.distance < 3.6) {
+      distance = "full shot";
+    } else if (this.state.distance < 4.8) {
+      distance = "medium long shot";
     } else if (this.state.distance < 6) {
       distance = "medium shot";
-    } else {
+    } else if (this.state.distance < 7.5) {
       distance = "close-up";
+    } else if (this.state.distance < 9.5) {
+      distance = "extreme close-up";
+    } else {
+      distance = "macro shot";
     }
-    return `<sks> ${hDirection} ${vDirection} ${distance}`;
+    return `Change the camera to a ${distance} from a ${vDirection}, ${hDirection} of the same subject. Preserve identity, materials, and lighting — only change the camera angle and framing.`;
   }
   setState(newState) {
     if (newState.azimuth !== void 0) {
@@ -27235,7 +27279,7 @@ function useCameraWidget(initialState = {}, onExternalStateChange) {
   const elevation = ref(initialState.elevation ?? 0);
   const distance = ref(initialState.distance ?? 5);
   const imageUrl = ref(null);
-  const prompt = ref("<sks> front view eye-level shot medium shot");
+  const prompt = ref("Change the camera to a medium shot from a eye-level shot, front view of the same subject. Preserve identity, materials, and lighting — only change the camera angle and framing.");
   let widget = null;
   let updatingFromWidget = false;
   let updatingFromExternal = false;
