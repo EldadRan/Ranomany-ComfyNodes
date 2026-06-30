@@ -200,5 +200,5 @@ NODE_CLASS_MAPPINGS = {
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RananomyCameraAngle":     "Camera Angle",
-    "RanomanyCameraAngleEdit": "Camera Angle (Edit Mode)",
+    "RanomanyCameraAngleEdit": "Camera Angle (Load Image)",
 }
