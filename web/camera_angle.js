@@ -3,12 +3,11 @@ import { api } from "../../scripts/api.js";
 
 const THREE_URL = new URL("./vendor/three.module.min.js", import.meta.url).href;
 
-// Lazy-loaded Three.js — set before any CameraWidget is constructed
+// Kick off the Three.js import immediately at module-load time.
+// We do NOT top-level await it — that would block the whole module.
+// nodeCreated will add the DOM widget synchronously, then .then() initialises Three.js.
 let T = null;
-async function loadThree() {
-    if (!T) T = await import(THREE_URL);
-    return T;
-}
+const threePromise = import(THREE_URL).then(m => { T = m; return m; });
 
 // ─── taxonomy (mirrors Python node exactly) ───────────────────────────────────
 
@@ -46,7 +45,7 @@ function getShotSize(d) {
 }
 
 // ─── CameraWidget ─────────────────────────────────────────────────────────────
-// Uses module-level `T` (Three.js) — must be loaded before constructing.
+// Constructed only after T (Three.js) has been assigned.
 
 class CameraWidget {
     constructor({ container, initialState = {}, onStateChange } = {}) {
@@ -76,10 +75,10 @@ class CameraWidget {
         this._time          = 0;
         this._distTube      = null;
 
-        this.CENTER     = new T.Vector3(0, 0.5, 0);
-        this.AZ_RADIUS  = 1.8;
-        this.EL_RADIUS  = 1.4;
-        this.EL_ARC_X   = -0.8;
+        this.CENTER    = new T.Vector3(0, 0.5, 0);
+        this.AZ_RADIUS = 1.8;
+        this.EL_RADIUS = 1.4;
+        this.EL_ARC_X  = -0.8;
 
         this._initScene();
         this._bindEvents();
@@ -90,8 +89,8 @@ class CameraWidget {
     // ── scene ────────────────────────────────────────────────────────────────
 
     _initScene() {
-        const w = this.container.clientWidth  || 300;
-        const h = this.container.clientHeight || 300;
+        const w = this.container.clientWidth  || 350;
+        const h = this.container.clientHeight || 350;
 
         this._scene = new T.Scene();
         this._scene.background = new T.Color(0x0a0a0f);
@@ -129,6 +128,9 @@ class CameraWidget {
         this._buildElArc();
         this._buildDistHandle();
         this._updateVisuals();
+
+        // If container was 0×0 at construction time, resize once rendered into DOM
+        requestAnimationFrame(() => this._onResize());
     }
 
     _buildSubject() {
@@ -162,7 +164,6 @@ class CameraWidget {
             new T.MeshStandardMaterial({ color: 0xE93D82, emissive: 0xE93D82, emissiveIntensity: 0.5, metalness: 0.8, roughness: 0.2 })
         );
         this._scene.add(this._camIndicator);
-
         this._camGlow = new T.Mesh(
             new T.SphereGeometry(0.08, 16, 16),
             new T.MeshBasicMaterial({ color: 0xff6ba8, transparent: true, opacity: 0.8 })
@@ -227,7 +228,6 @@ class CameraWidget {
             new T.MeshStandardMaterial({ color: 0xFFB800, emissive: 0xFFB800, emissiveIntensity: 0.7, metalness: 0.5, roughness: 0.3 })
         );
         this._scene.add(this._distHandle);
-
         this._distGlow = new T.Mesh(
             new T.SphereGeometry(0.22, 16, 16),
             new T.MeshBasicMaterial({ color: 0xFFB800, transparent: true, opacity: 0.25 })
@@ -235,7 +235,7 @@ class CameraWidget {
         this._scene.add(this._distGlow);
     }
 
-    // ── HUD overlay ──────────────────────────────────────────────────────────
+    // ── HUD ──────────────────────────────────────────────────────────────────
 
     _createHUD() {
         const hud = document.createElement("div");
@@ -251,10 +251,8 @@ class CameraWidget {
     }
 
     _updateHUD() {
-        const h = getHorizontal(this._liveAz);
-        const v = getVertical(this._liveEl);
-        const s = getShotSize(this._liveDi);
-        this._hud.textContent = `${s}  ·  ${h}  ·  ${v}`;
+        this._hud.textContent =
+            `${getShotSize(this._liveDi)}  ·  ${getHorizontal(this._liveAz)}  ·  ${getVertical(this._liveEl)}`;
     }
 
     // ── visuals ──────────────────────────────────────────────────────────────
@@ -289,7 +287,11 @@ class CameraWidget {
         this._azHandle.position.set(this.AZ_RADIUS * Math.sin(azRad), 0.16, this.AZ_RADIUS * Math.cos(azRad));
         this._azGlow.position.copy(this._azHandle.position);
 
-        this._elHandle.position.set(this.EL_ARC_X, this.CENTER.y + this.EL_RADIUS * Math.sin(elRad), this.EL_RADIUS * Math.cos(elRad));
+        this._elHandle.position.set(
+            this.EL_ARC_X,
+            this.CENTER.y + this.EL_RADIUS * Math.sin(elRad),
+            this.EL_RADIUS * Math.cos(elRad)
+        );
         this._elGlow.position.copy(this._elHandle.position);
 
         const distT = 0.15 + ((10 - this._liveDi) / 10) * 0.7;
@@ -307,6 +309,17 @@ class CameraWidget {
         if (glow) glow.scale.setScalar(s);
     }
 
+    _onResize() {
+        const w = this.container.clientWidth;
+        const h = this.container.clientHeight;
+        if (!w || !h) return;
+        this._camera.aspect     = w / h;
+        this._previewCam.aspect = w / h;
+        this._camera.updateProjectionMatrix();
+        this._previewCam.updateProjectionMatrix();
+        this._renderer.setSize(w, h, false);
+    }
+
     // ── events ───────────────────────────────────────────────────────────────
 
     _bindEvents() {
@@ -319,16 +332,7 @@ class CameraWidget {
         cv.addEventListener("touchmove",  e => { e.preventDefault(); this._onMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }); }, { passive: false });
         cv.addEventListener("touchend",   () => this._onUp());
         cv.addEventListener("wheel",      e => this._onWheel(e), { passive: false });
-
-        new ResizeObserver(() => {
-            const w = this.container.clientWidth, h = this.container.clientHeight;
-            if (!w || !h) return;
-            this._camera.aspect     = w / h;
-            this._previewCam.aspect = w / h;
-            this._camera.updateProjectionMatrix();
-            this._previewCam.updateProjectionMatrix();
-            this._renderer.setSize(w, h, false);
-        }).observe(this.container);
+        new ResizeObserver(() => this._onResize()).observe(this.container);
     }
 
     _getMousePos(e) {
@@ -373,8 +377,7 @@ class CameraWidget {
 
         if (this._useCameraView && this._isOrbitDrag) {
             const sens = 0.5;
-            let az = this._orbitStartAz - (e.clientX - this._orbitStartX) * sens;
-            az = ((az % 360) + 360) % 360;
+            let az = ((this._orbitStartAz - (e.clientX - this._orbitStartX) * sens) % 360 + 360) % 360;
             let el = Math.max(-90, Math.min(90, this._orbitStartEl + (e.clientY - this._orbitStartY) * sens));
             this._liveAz = az; this.state.azimuth   = Math.round(az);
             this._liveEl = el; this.state.elevation  = Math.round(el);
@@ -406,7 +409,7 @@ class CameraWidget {
         const hit   = new T.Vector3();
 
         if (this._dragTarget === "azimuth") {
-            plane.setFromNormalAndCoplanarPoint(new T.Vector3(0, 1, 0), new T.Vector3(0, 0, 0));
+            plane.setFromNormalAndCoplanarPoint(new T.Vector3(0, 1, 0), new T.Vector3());
             if (this._raycaster.ray.intersectPlane(plane, hit)) {
                 let az = Math.atan2(hit.x, hit.z) * 180 / Math.PI;
                 if (az < 0) az += 360;
@@ -416,8 +419,7 @@ class CameraWidget {
         } else if (this._dragTarget === "elevation") {
             const ep = new T.Plane(new T.Vector3(1, 0, 0), -this.EL_ARC_X);
             if (this._raycaster.ray.intersectPlane(ep, hit)) {
-                let el = Math.atan2(hit.y - this.CENTER.y, hit.z) * 180 / Math.PI;
-                el = Math.max(-90, Math.min(90, el));
+                let el = Math.max(-90, Math.min(90, Math.atan2(hit.y - this.CENTER.y, hit.z) * 180 / Math.PI));
                 this._liveEl = el; this.state.elevation = Math.round(el);
                 this._updateVisuals(); this._notify();
             }
@@ -486,9 +488,8 @@ class CameraWidget {
             this._planeMat.color.set(0xffffff);
             this._planeMat.needsUpdate = true;
             const ar = img.width / img.height, max = 1.5;
-            const sx = ar > 1 ? max : max * ar, sy = ar > 1 ? max / ar : max;
-            this._imagePlane.scale.set(sx, sy, 1);
-            this._imageFrame.scale.set(sx, sy, 1);
+            this._imagePlane.scale.set(ar > 1 ? max : max * ar, ar > 1 ? max / ar : max, 1);
+            this._imageFrame.scale.set(ar > 1 ? max : max * ar, ar > 1 ? max / ar : max, 1);
         };
         img.src = url;
     }
@@ -522,60 +523,69 @@ const instances = new WeakMap();
 app.registerExtension({
     name: "Ranomany.CameraAngle",
 
-    async nodeCreated(node) {
-        const cls = node.comfyClass ?? node.constructor?.comfyClass;
-        if (cls !== "RananomyCameraAngle") return;
-
-        // Load Three.js on first use (cached after that)
-        await loadThree();
+    // NOT async — addDOMWidget must run synchronously so ComfyUI can lay out
+    // the node correctly. Three.js init is deferred into threePromise.then().
+    nodeCreated(node) {
+        if (node.comfyClass !== "RananomyCameraAngle") return;
 
         node.setSize([Math.max(node.size[0], 350), Math.max(node.size[1], 520)]);
 
         const container = document.createElement("div");
-        container.style.cssText = "width:100%;height:350px;min-height:350px;position:relative;overflow:hidden;";
+        container.style.cssText = "width:100%;height:350px;min-height:350px;position:relative;overflow:hidden;background:#0a0a0f;";
 
-        const rw = name => node.widgets?.find(w => w.name === name);
-
-        const widget = new CameraWidget({
-            container,
-            initialState: {
-                azimuth:   Number(rw("azimuth")?.value   ?? 0),
-                elevation: Number(rw("elevation")?.value ?? 0),
-                distance:  Number(rw("distance")?.value  ?? 5),
-            },
-            onStateChange(state) {
-                const az = rw("azimuth"), el = rw("elevation"), di = rw("distance");
-                if (az) az.value = state.azimuth;
-                if (el) el.value = state.elevation;
-                if (di) di.value = state.distance;
-                app.graph?.setDirtyCanvas(true, true);
-            }
-        });
-
-        // sync sliders → 3D scene
-        ["azimuth", "elevation", "distance"].forEach(name => {
-            const w = rw(name);
-            if (!w) return;
-            const orig = w.callback;
-            w.callback = v => { orig?.call(w, v); widget.setState({ [name]: Number(v) }); };
-        });
-
-        instances.set(node, widget);
-
-        // display image from execution output in the 3D subject plane
-        node.onExecuted = function(output) {
-            const imgs = output?.preview_images ?? output?.images;
-            if (imgs?.length) {
-                const { filename, subfolder, type } = imgs[0];
-                const url = api.apiURL(`/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}`);
-                widget.updateImage(url);
-            }
-        };
-
+        // Add the DOM widget synchronously — this is the critical change.
         const domWidget = node.addDOMWidget("camera_preview", "camera-angle", container, {
             getMinHeight: () => 370,
             hideOnZoom:   false,
             serialize:    false,
+        });
+
+        const rw = name => node.widgets?.find(w => w.name === name);
+
+        // Initialise Three.js scene once the library is ready (may already be cached).
+        threePromise.then(() => {
+            const widget = new CameraWidget({
+                container,
+                initialState: {
+                    azimuth:   Number(rw("azimuth")?.value   ?? 0),
+                    elevation: Number(rw("elevation")?.value ?? 0),
+                    distance:  Number(rw("distance")?.value  ?? 5),
+                },
+                onStateChange(state) {
+                    const az = rw("azimuth"), el = rw("elevation"), di = rw("distance");
+                    if (az) az.value = state.azimuth;
+                    if (el) el.value = state.elevation;
+                    if (di) di.value = state.distance;
+                    app.graph?.setDirtyCanvas(true, true);
+                }
+            });
+
+            // sync sliders → 3D scene
+            ["azimuth", "elevation", "distance"].forEach(name => {
+                const w = rw(name);
+                if (!w) return;
+                const orig = w.callback;
+                w.callback = v => { orig?.call(w, v); widget.setState({ [name]: Number(v) }); };
+            });
+
+            instances.set(node, widget);
+
+            node.onExecuted = function(output) {
+                const imgs = output?.preview_images ?? output?.images;
+                if (imgs?.length) {
+                    const { filename, subfolder, type } = imgs[0];
+                    widget.updateImage(api.apiURL(
+                        `/view?filename=${encodeURIComponent(filename)}`
+                        + `&subfolder=${encodeURIComponent(subfolder ?? "")}`
+                        + `&type=${type ?? "output"}`
+                    ));
+                }
+            };
+
+        }).catch(err => {
+            console.error("[CameraAngle] Three.js failed to load:", err);
+            container.innerHTML = `<div style="color:#f88;padding:12px;font:12px monospace">
+                Three.js failed to load.<br>${err.message}</div>`;
         });
 
         const origRemove = domWidget.onRemove?.bind(domWidget);
