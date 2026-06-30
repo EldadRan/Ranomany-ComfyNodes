@@ -9,7 +9,10 @@ Ranomany-ComfyNodes/
 ├── README.md
 ├── manifest.yaml                # node_name -> {description, deps, version}
 ├── web/                         # JS extensions auto-loaded by ComfyUI frontend
-│   └── save_video.js            # Inline video preview for Save Video node
+│   ├── save_video.js            # Inline video preview for Save Video node
+│   ├── camera_angle.bundle.js   # 3D camera-angle GUI (Vue + Three.js, built)
+│   ├── load_image_from_output.js# App-mode <img> preview + refresh for Load Image (Edit Mode)
+│   └── assets/main.css          # Styles for the camera-angle GUI
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
     ├── gemini_image/            # Image generation / editing via Gemini
@@ -17,7 +20,10 @@ Ranomany-ComfyNodes/
     ├── openai_image/            # Image generation / editing via OpenAI gpt-image-2
     ├── save_image_no_meta/      # Save PNG without workflow metadata
     ├── wan_image/               # Image generation / editing via Alibaba Wan 2.7
-    └── wan_video/               # Video generation / editing via Alibaba Wan 2.7
+    ├── wan_video/               # Video generation / editing via Alibaba Wan 2.7
+    ├── camera_angle/            # 3D Camera Angle control + Camera Angle (Load Image)
+    │   └── gui/                 # Vue + Three.js source for the GUI bundle (rebuildable)
+    └── load_latest_output/      # Load Image (Edit Mode) — native picker + newest-output
 ```
 
 ---
@@ -487,6 +493,105 @@ Edit an existing video with a text instruction, optionally guided by reference i
 [Load Image] ──reference_image_1──►    prompt = "Replace the actor with this character"
                                         ──video──► [Save Video]
 ```
+
+---
+
+### `camera_angle` — Camera Angle
+
+An interactive **3D camera-angle control** (Vue + Three.js GUI, ported from
+`ComfyUI-qwenmultiangle` with industry-standard cinematography terminology). Drag the
+azimuth ring, elevation arc, and distance handle — or type into the sliders — and the node
+emits a prose instruction prompt for image-to-image **camera retargeting** that large
+models (Gemini, GPT Image, Wan) parse reliably, plus the individual angle labels.
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** none (the Three.js GUI is shipped pre-built in `web/camera_angle.bundle.js`)
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `horizontal_angle` | INT slider (0–360) | `0` | Azimuth |
+| `vertical_angle` | INT slider (−30–60) | `0` | Elevation (the 3D handle is clamped to this range) |
+| `zoom` | FLOAT slider (0–10) | `5.0` | Distance — higher = closer |
+| `image` | IMAGE | *(optional)* | Shown on the plane inside the 3D scene **after the first run** |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `prompt` | STRING | `Change the camera to a {shot} from a {vertical}, {horizontal} of the same subject. Preserve identity, materials, and lighting — only change the camera angle and framing.` |
+| `horizontal` | STRING | e.g. `right side profile` |
+| `vertical` | STRING | e.g. `slight high angle` |
+| `shot_size` | STRING | e.g. `close-up` |
+
+#### Taxonomy
+
+| Axis | Zones |
+|---|---|
+| **Horizontal** (8) | front view · front-right three-quarter angle · right side profile · rear-right three-quarter angle · rear view · rear-left three-quarter angle · left side profile · front-left three-quarter angle |
+| **Vertical** (6) | low-angle shot · slight low angle · eye-level shot · slight high angle · high-angle shot · overhead high-angle shot |
+| **Shot size** (8) | extreme wide · wide · full · medium long · medium · close-up · extreme close-up · macro |
+
+The 3D GUI is a single self-contained bundle (Three.js baked in — no external import). Its
+Vue/TypeScript source lives in `nodes/camera_angle/gui/`; rebuild with
+`cd nodes/camera_angle/gui && npm install && npm run build`, then copy `js/main.js` →
+`web/camera_angle.bundle.js` and `js/assets/main.css` → `web/assets/main.css`.
+
+---
+
+### `camera_angle` — Camera Angle (Load Image)
+
+Same 3D control as **Camera Angle**, but with a **built-in image picker** instead of an
+IMAGE input port. It loads its own image (native All / Imported / Generated browser +
+upload), shows it in the 3D scene **immediately** (no run required), and outputs the loaded
+IMAGE/MASK alongside the camera prompt. The picker and the 3D widget both render in the
+**app/run panel**.
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** none
+
+| Input | Type | Notes |
+|---|---|---|
+| `horizontal_angle` / `vertical_angle` / `zoom` | INT / INT / FLOAT | Same as Camera Angle |
+| `image` | native image picker (`image_upload`) | Pick an input/output image or upload one; appears in the 3D scene at once |
+
+| Output | Type | Description |
+|---|---|---|
+| `prompt`, `horizontal`, `vertical`, `shot_size` | STRING | Same as Camera Angle |
+| `image` | IMAGE | The loaded image (B×H×W×3, float32, 0–1) |
+| `mask` | MASK | Alpha-derived mask (zeros for images without alpha) |
+
+---
+
+### `load_latest_output` — Load Image (Edit Mode)
+
+A **Load Image** node built for an iterative edit loop. Uses the native ComfyUI image
+picker (All / Imported / Generated browser + upload) and outputs IMAGE/MASK. A
+**refresh / newest** button and an automatic snap to the **newest output image** after every
+run keep it pointed at the last generated image, so you can load → edit → regenerate → load
+again without re-picking.
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** none
+
+| Input | Type | Notes |
+|---|---|---|
+| `image` | native image picker (`image_upload`) | Pick any input/output image, upload one, or let it auto-snap to the newest output |
+
+| Output | Type | Description |
+|---|---|---|
+| `image` | IMAGE | The loaded image (B×H×W×3, float32, 0–1) |
+| `mask` | MASK | Alpha-derived mask |
+
+**Notes**
+- The native inline image preview is hardcoded (in the frontend) to `node.type === "LoadImage"`,
+  so this node renders its own `<img>` preview as a DOM widget that shows in the **app/run
+  panel** (gated to app mode via CSS so the editor isn't double-previewed). Expose the
+  `preview` widget in the app builder to show it.
+- Auto-snap uses the `GET /ranomany/latest-output` route (registered by
+  `nodes/load_latest_output/server.py`) to find the newest output file by modification time —
+  the browser can't read mtimes on its own.
 
 ---
 
