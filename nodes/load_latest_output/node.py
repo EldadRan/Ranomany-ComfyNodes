@@ -105,12 +105,11 @@ class LoadImageEdit:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                # Plain recognized image-upload combo over the output folder.
-                # No `remote` config — that is what enables the app-mode preview.
-                "image": (_list_output_images(), {
-                    "image_upload": True,
-                    "image_folder": "output",
-                }),
+                # Plain combo picker of output images (values annotated `name [output]`).
+                # The preview is rendered by web/load_image_from_output.js as an <img>
+                # DOM widget, which renders in BOTH the editor and the app/run panel
+                # (the native app-mode preview is hardcoded to node.type === "LoadImage").
+                "image": (_list_output_images(), {}),
             }
         }
 
