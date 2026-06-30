@@ -2,8 +2,8 @@
 Ranomany Camera Angle — a port of ComfyUI-qwenmultiangle's 3D camera control.
 
 The 3D GUI (web/camera_angle.bundle.js, Three.js baked in) drives the
-horizontal_angle / vertical_angle / zoom / camera_view widgets and reads the
-preview_images UI output to show the input image inside the scene. This node
+horizontal_angle / vertical_angle / zoom widgets and reads the preview_images
+UI output to show the input image inside the scene. This node
 keeps those exact widget names so the unmodified bundle attaches to it, and
 changes only the two things we care about: a finer taxonomy ("more steps") and
 a Gemini-friendly prose prompt.
@@ -27,7 +27,6 @@ class CameraAngle:
                 "horizontal_angle": ("INT",   {"default": 0,   "min": 0,   "max": 360, "step": 1, "display": "slider"}),
                 "vertical_angle":   ("INT",   {"default": 0,   "min": -30, "max": 60,  "step": 1, "display": "slider"}),
                 "zoom":             ("FLOAT", {"default": 5.0, "min": 0.0, "max": 10.0,"step": 0.1,"display": "slider"}),
-                "camera_view":      ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "image": ("IMAGE",),
@@ -40,7 +39,7 @@ class CameraAngle:
     CATEGORY      = "Ranomany/Utils"
     OUTPUT_NODE   = True
 
-    def generate(self, horizontal_angle, vertical_angle, zoom, camera_view=False, image=None):
+    def generate(self, horizontal_angle, vertical_angle, zoom, image=None):
         horizontal_angle = max(0, min(360, int(horizontal_angle)))
         vertical_angle   = max(-30, min(60, int(vertical_angle)))
         zoom             = max(0.0, min(10.0, float(zoom)))

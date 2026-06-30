@@ -168,11 +168,6 @@ function bindWidgetCallbacks(
     exposed.setState({ distance })
     writeStoredProps(node, { distance })
   })
-  wire('camera_view', v => {
-    const cameraView = Boolean(v)
-    exposed.setCameraView(cameraView)
-    writeStoredProps(node, { cameraView })
-  })
 }
 
 function createCameraWidget(node: QwenMultiangleNode): DOMWidgetInstance {

@@ -6373,7 +6373,7 @@ function t(key) {
 }
 initI18n();
 const _hoisted_1$1 = { class: "control-panel" };
-const _hoisted_2$1 = { class: "info-row" };
+const _hoisted_2 = { class: "info-row" };
 const _hoisted_3 = { class: "control" };
 const _hoisted_4 = { class: "dropdown-label azimuth" };
 const _hoisted_5 = ["value"];
@@ -6462,7 +6462,7 @@ const _sfc_main$1 = /* @__PURE__ */ defineComponent({
     }
     return (_ctx, _cache2) => {
       return openBlock(), createElementBlock("div", _hoisted_1$1, [
-        createBaseVNode("div", _hoisted_2$1, [
+        createBaseVNode("div", _hoisted_2, [
           createBaseVNode("div", _hoisted_3, [
             createBaseVNode("span", _hoisted_4, toDisplayString(unref(t)("horizontal")), 1),
             createBaseVNode("select", {
@@ -27367,7 +27367,6 @@ function useCameraWidget(initialState = {}, onExternalStateChange) {
   };
 }
 const _hoisted_1 = { class: "qwen-container" };
-const _hoisted_2 = { class: "prompt-overlay" };
 const _sfc_main = /* @__PURE__ */ defineComponent({
   __name: "App",
   props: {
@@ -27380,7 +27379,6 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
       azimuth,
       elevation,
       distance,
-      prompt,
       initScene,
       setState,
       updateImage,
@@ -27392,7 +27390,6 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     return (_ctx, _cache2) => {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createVNode(SceneCanvas, { "init-scene": unref(initScene) }, null, 8, ["init-scene"]),
-        createBaseVNode("div", _hoisted_2, toDisplayString(unref(prompt)), 1),
         createVNode(ControlPanel, {
           azimuth: unref(azimuth),
           elevation: unref(elevation),
@@ -27406,7 +27403,7 @@ const _sfc_main = /* @__PURE__ */ defineComponent({
     };
   }
 });
-const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-7061782c"]]);
+const App = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-82c6131e"]]);
 const { app } = window.comfyAPI.app;
 const { api } = window.comfyAPI.api;
 (() => {
@@ -27525,11 +27522,6 @@ function bindWidgetCallbacks(node, exposed) {
     const distance = Number(v);
     exposed.setState({ distance });
     writeStoredProps(node, { distance });
-  });
-  wire("camera_view", (v) => {
-    const cameraView = Boolean(v);
-    exposed.setCameraView(cameraView);
-    writeStoredProps(node, { cameraView });
   });
 }
 function createCameraWidget(node) {

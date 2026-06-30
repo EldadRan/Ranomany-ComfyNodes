@@ -1,7 +1,6 @@
 <template>
   <div class="qwen-container">
     <SceneCanvas :init-scene="initScene" />
-    <div class="prompt-overlay">{{ prompt }}</div>
     <ControlPanel
       :azimuth="azimuth"
       :elevation="elevation"
@@ -29,7 +28,6 @@ const {
   azimuth,
   elevation,
   distance,
-  prompt,
   initScene,
   setState,
   updateImage,
@@ -50,24 +48,5 @@ defineExpose({ updateImage, setCameraView, setState, cleanup })
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   border-radius: 8px;
   overflow: hidden;
-}
-
-.prompt-overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
-  background: rgba(10, 10, 15, 0.9);
-  border: 1px solid rgba(233, 61, 130, 0.3);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
-  color: #E93D82;
-  backdrop-filter: blur(4px);
-  font-family: 'Consolas', 'Monaco', monospace;
-  word-break: break-all;
-  line-height: 1.4;
-  pointer-events: none;
-  z-index: 10;
 }
 </style>
