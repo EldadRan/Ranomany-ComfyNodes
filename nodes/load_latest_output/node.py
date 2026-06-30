@@ -1,7 +1,13 @@
 """
-LoadImageEdit — loads and returns the newest image from the output folder on
-every workflow run. Picker widget lists output-folder images and auto-refreshes
-after each run, selecting the newest file via `control_after_refresh: "first"`.
+LoadImageEdit ("Load Image (from Outputs)") — a Load Image node sourced from the
+output folder. Behaves like the native LoadImage (the user can pick any output
+image and the preview follows the selection), but a companion JS extension
+auto-selects the newest output image whenever a workflow run finishes, so the
+node is primed with the last generated image.
+
+The image widget is a plain, frontend-recognized `image_upload` combo (NO remote
+config) — that is what makes the inline image preview render in ComfyUI's
+app/run panel, not just the graph editor.
 """
 
 import os
@@ -30,6 +36,7 @@ def _list_output_images() -> list[str]:
 
 
 def _find_latest(folder: str) -> str | None:
+    """Newest image file under `folder` by modification time (full path)."""
     best_path = None
     best_mtime = -1.0
     for root, _, files in os.walk(folder):
@@ -45,6 +52,27 @@ def _find_latest(folder: str) -> str | None:
                 best_mtime = mt
                 best_path = full
     return best_path
+
+
+def _resolve_output_path(value: str) -> str | None:
+    """Resolve a combo value to a real path inside the output directory.
+
+    Handles a trailing ` [output]`/`[input]` annotation that the frontend may add,
+    and falls back to the newest output file when the value is empty or missing.
+    """
+    output_dir = folder_paths.get_output_directory()
+    name = (value or "").strip()
+    # strip a "name [output]" style annotation if present
+    if name.endswith("]") and "[" in name:
+        name = name[: name.rfind("[")].strip()
+
+    if name:
+        candidate = os.path.normpath(os.path.join(output_dir, name))
+        # keep the path inside the output directory
+        if candidate.startswith(os.path.normpath(output_dir)) and os.path.isfile(candidate):
+            return candidate
+
+    return _find_latest(output_dir)
 
 
 def _load_image(path: str):
@@ -71,14 +99,11 @@ class LoadImageEdit:
     def INPUT_TYPES(cls):
         return {
             "required": {
+                # Plain recognized image-upload combo over the output folder.
+                # No `remote` config — that is what enables the app-mode preview.
                 "image": (_list_output_images(), {
                     "image_upload": True,
                     "image_folder": "output",
-                    "remote": {
-                        "route": "/internal/files/output",
-                        "refresh_button": True,
-                        "control_after_refresh": "first",
-                    },
                 }),
             }
         }
@@ -90,17 +115,20 @@ class LoadImageEdit:
 
     @classmethod
     def IS_CHANGED(cls, image):
-        return float("nan")
+        path = _resolve_output_path(image)
+        if path is None:
+            return float("nan")
+        try:
+            return f"{path}:{os.path.getmtime(path)}"
+        except OSError:
+            return float("nan")
 
     def load(self, image: str):
-        output_dir = folder_paths.get_output_directory()
-        path = _find_latest(output_dir)
-
+        path = _resolve_output_path(image)
         if path is None:
             raise RuntimeError(
                 "LoadImageEdit: no image files found in the output directory."
             )
-
         return _load_image(path)
 
 
@@ -109,5 +137,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RanomanyLoadImageEdit": "Load Image Edit",
+    "RanomanyLoadImageEdit": "Load Image (from Outputs)",
 }
