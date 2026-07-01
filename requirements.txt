@@ -1,2 +1,10 @@
-google-genai>=1.0.0
-mutagen>=1.47.0
+# Ranomany-ComfyNodes — all third-party dependencies for the whole bundle.
+#
+# This is the single source of truth. ComfyUI-Manager installs this file
+# automatically; for a manual / git install run:
+#   pip install -r requirements.txt
+#
+# The per-node nodes/<name>/requirements.txt files just `-r` this file.
+google-genai>=1.0.0   # gemini_image, gemini_veo
+openai>=1.0.0         # openai_image
+mutagen>=1.47.0       # gemini_veo (video/audio metadata)

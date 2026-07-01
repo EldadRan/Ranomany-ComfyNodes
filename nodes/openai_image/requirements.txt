@@ -1,1 +1,2 @@
-openai>=1.0.0
+# Dependencies are declared in the bundle-level requirements at the repo root.
+-r ../../requirements.txt
