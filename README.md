@@ -472,7 +472,18 @@ ComfyUI hands nodes only the `/prompt` body — not the HTTP request headers —
 | `authenticated` | BOOLEAN | True if the request carried an Access email or JWT |
 | `identity_json` | STRING | JSON of all `Cf-*` request headers (Access email, `Cf-Access-Jwt-Assertion`, `Cf-Ray`, `Cf-Ipcountry`, …) |
 
-> **Trust caveat:** the email header is plaintext and is only trustworthy because the origin is reachable *solely* through Cloudflare. Use it for attribution/metadata, **not** authorization — for real authz, verify the signed `Cf-Access-Jwt-Assertion` against your team's certs. Locally (no Cloudflare) the node reports empty / not authenticated.
+> **Trust caveat:** the email header is plaintext and is only trustworthy because the origin is reachable *solely* through Cloudflare. Use it for attribution/metadata, **not** authorization — for real authz, verify the signed `Cf-Access-Jwt-Assertion` against your team's certs.
+
+**Local simulation (test before deploying):** when no real Cloudflare header is present, the route falls back to a simulated email from **`RANOMANY_CF_SIMULATED_EMAIL`** — set it as an env var or add a line to `.env` next to your API keys:
+
+```bash
+# one-off launch
+RANOMANY_CF_SIMULATED_EMAIL=you@example.com <your comfyui start command>
+# …or in .env
+RANOMANY_CF_SIMULATED_EMAIL=you@example.com
+```
+
+The node then reports that email with the panel showing **✓ authenticated (simulated)**, so your whole workflow / metadata chain behaves like production. The real Cloudflare header always takes precedence, so leaving the var unset in production changes nothing. (Alternatively, a browser header-injection extension like ModHeader can add a real `Cf-Access-Authenticated-User-Email` header to localhost requests — no code, exercises the exact header path.)
 
 ---
 

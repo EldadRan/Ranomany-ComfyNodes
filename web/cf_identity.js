@@ -34,8 +34,9 @@ function renderInfo(node) {
     if (!box) return;
     const email = node.widgets?.find((w) => w.name === "email")?.value || "";
     const authed = !!node.widgets?.find((w) => w.name === "authenticated")?.value;
+    const sim = !!node.__ranomanyCfSim;
     const status = authed
-        ? '<span class="rv-ok">✓ authenticated</span>'
+        ? `<span class="rv-ok">✓ authenticated${sim ? " (simulated)" : ""}</span>`
         : '<span class="rv-no">✗ not behind Access</span>';
     box.innerHTML =
         `<div class="rv-row"><span class="rv-k">email</span>` +
@@ -59,6 +60,7 @@ async function fetchIdentity(node) {
         if (token !== node.__ranomanyCfReq) return; // superseded by a newer fetch
         if (!r.ok) return;
         const d = await r.json();
+        node.__ranomanyCfSim = !!d.simulated;
         setWidget(node, "email", d.email || "");
         setWidget(node, "authenticated", !!d.authenticated);
         setWidget(node, "identity_json", JSON.stringify(d.headers || {}, null, 2));
