@@ -13,6 +13,7 @@ Ranomany-ComfyNodes/
 │   ├── camera_angle.bundle.js   # 3D camera-angle GUI (Vue + Three.js, built)
 │   ├── load_image_from_output.js# App-mode <img> preview + refresh for Load Image (Edit Mode)
 │   ├── video_info.js            # Inline video player for Load Video (Info)
+│   ├── cf_identity.js           # Fetches Cloudflare Access identity into the node
 │   └── assets/main.css          # Styles for the camera-angle GUI
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
@@ -25,7 +26,8 @@ Ranomany-ComfyNodes/
     ├── camera_angle/            # 3D Camera Angle control + Camera Angle (Load Image)
     │   └── gui/                 # Vue + Three.js source for the GUI bundle (rebuildable)
     ├── load_latest_output/      # Load Image (Edit Mode) — native picker + newest-output
-    └── video_info/              # Load Video (Info) — metadata + inline playback (PyAV)
+    ├── video_info/              # Load Video (Info) + Extract Video Frames (PyAV)
+    └── cf_identity/             # Cloudflare Access Identity — CF headers into the workflow
 ```
 
 ---
@@ -452,6 +454,25 @@ Batches are capped at 10,000 frames (warns + truncates) to protect memory. An em
 ```
 [Load Video (Info)] ──video──► [Extract Video Frames] ──images──► [Save Image / Preview]
 ```
+
+---
+
+### `cf_identity` — Cloudflare Access Identity
+
+Surfaces the **Cloudflare Access** identity of the current user into the workflow, so downstream nodes can stamp *who generated this* into output files (see the forthcoming EXIF / video-metadata writers).
+
+ComfyUI hands nodes only the `/prompt` body — not the HTTP request headers — so the identity can't be read at execution time. A companion route `GET /ranomany/cf-identity` reads the `Cf-Access-*` headers from the request, and the JS extension pulls them into this node's widgets (refreshed on load, via a button, and again right before you hit Run so it reflects whoever runs it).
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** none
+
+| Output | Type | Description |
+|---|---|---|
+| `email` | STRING | `Cf-Access-Authenticated-User-Email` (empty when not behind Access) |
+| `authenticated` | BOOLEAN | True if the request carried an Access email or JWT |
+| `identity_json` | STRING | JSON of all `Cf-*` request headers (Access email, `Cf-Access-Jwt-Assertion`, `Cf-Ray`, `Cf-Ipcountry`, …) |
+
+> **Trust caveat:** the email header is plaintext and is only trustworthy because the origin is reachable *solely* through Cloudflare. Use it for attribution/metadata, **not** authorization — for real authz, verify the signed `Cf-Access-Jwt-Assertion` against your team's certs. Locally (no Cloudflare) the node reports empty / not authenticated.
 
 ---
 

@@ -28,6 +28,7 @@ _NODE_FILES = [
     ("nodes/load_latest_output/node.py", "load_latest_output"),
     ("nodes/camera_angle/node.py",       "camera_angle"),
     ("nodes/video_info/node.py",         "video_info"),
+    ("nodes/cf_identity/node.py",        "cf_identity"),
 ]
 
 for _rel, _label in _NODE_FILES:
@@ -60,6 +61,12 @@ try:
     print("[Ranomany-ComfyNodes] video-info route registered")
 except Exception:
     print(f"[Ranomany-ComfyNodes] video-info route failed:\n{traceback.format_exc()}")
+
+try:
+    _load("nodes/cf_identity/server.py")
+    print("[Ranomany-ComfyNodes] cf-identity route registered")
+except Exception:
+    print(f"[Ranomany-ComfyNodes] cf-identity route failed:\n{traceback.format_exc()}")
 
 WEB_DIRECTORY = "./web"
 
