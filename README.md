@@ -405,6 +405,8 @@ This is Phase 1 of a PyAV-backed video toolset; later phases (frame extraction t
 | `duration_seconds` | FLOAT | Duration in seconds |
 | `width` | INT | Frame width in pixels |
 | `height` | INT | Frame height in pixels |
+| `filename` | STRING | File name without extension (e.g. `video_00002_`) |
+| `file_extension` | STRING | Extension without the dot (e.g. `mp4`) |
 
 In **app mode** the node shows an info panel (resolution / fps / frames / duration) that fills in **as soon as you pick or upload a clip** — no graph run needed. It's backed by a small `GET /ranomany/video-info` route that runs the same PyAV probe (fps and exact frame count aren't available to the browser's HTML5 video API).
 
@@ -443,6 +445,7 @@ Decodes frames from a loaded video into a ComfyUI `IMAGE` batch. Wire it after *
 | `images` | IMAGE | Extracted frames as a `B×H×W×3` batch |
 | `frame_count` | INT | Number of frames actually extracted |
 | `fps` | FLOAT | Source frame rate (handy to reassemble frames → video later) |
+| `action` | STRING | Short code for the chosen mode: `FS` (From start), `FL` (From last), `ES` (First frame of each second), `SS` (specific second) |
 
 Batches are capped at 10,000 frames (warns + truncates) to protect memory. An empty selection (e.g. a second beyond the clip) returns a single black frame and a warning instead of failing.
 

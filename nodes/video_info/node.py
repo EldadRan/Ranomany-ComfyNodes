@@ -30,6 +30,14 @@ MODE_FIRST_EACH_S = "First frame of each second"
 MODE_ALL_OF_S     = "All frames of specific second"
 FRAME_MODES = [MODE_FROM_START, MODE_FROM_LAST, MODE_FIRST_EACH_S, MODE_ALL_OF_S]
 
+# Short action codes emitted as a text output (FS / FL / ES / SS).
+MODE_ABBR = {
+    MODE_FROM_START:   "FS",
+    MODE_FROM_LAST:    "FL",
+    MODE_FIRST_EACH_S: "ES",
+    MODE_ALL_OF_S:     "SS",
+}
+
 _MAX_FRAMES = 10000  # safety cap: warn + truncate to protect memory
 
 
@@ -173,8 +181,9 @@ class LoadVideoInfo:
             }
         }
 
-    RETURN_TYPES = (VIDEO, "FLOAT", "INT", "FLOAT", "INT", "INT")
-    RETURN_NAMES = ("video", "fps", "frame_count", "duration_seconds", "width", "height")
+    RETURN_TYPES = (VIDEO, "FLOAT", "INT", "FLOAT", "INT", "INT", "STRING", "STRING")
+    RETURN_NAMES = ("video", "fps", "frame_count", "duration_seconds", "width", "height",
+                    "filename", "file_extension")
     FUNCTION     = "load"
     CATEGORY     = "Ranomany/Utils"
 
@@ -200,6 +209,8 @@ class LoadVideoInfo:
         mime = f"video/{ext}" if ext else "video/mp4"
 
         filename, subfolder, ftype = _split_annotated(video)
+        name_no_ext, dot_ext = os.path.splitext(filename)
+        file_extension = dot_ext.lstrip(".")
 
         return {
             "ui": {
@@ -216,7 +227,7 @@ class LoadVideoInfo:
                 }],
             },
             "result": ({"filepath": path, "mime_type": mime}, fps, frame_count,
-                       duration_seconds, width, height),
+                       duration_seconds, width, height, name_no_ext, file_extension),
         }
 
 
@@ -235,8 +246,8 @@ class ExtractVideoFrames:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "FLOAT")
-    RETURN_NAMES = ("images", "frame_count", "fps")
+    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "STRING")
+    RETURN_NAMES = ("images", "frame_count", "fps", "action")
     FUNCTION     = "extract"
     CATEGORY     = "Ranomany/Utils"
 
@@ -247,7 +258,7 @@ class ExtractVideoFrames:
         path = video["filepath"]
         arr, fps = _extract_frames(path, mode, amount)
         images = torch.from_numpy(arr.astype(np.float32) / 255.0)  # B×H×W×3
-        return (images, int(arr.shape[0]), float(fps))
+        return (images, int(arr.shape[0]), float(fps), MODE_ABBR.get(mode, ""))
 
 
 NODE_CLASS_MAPPINGS = {
