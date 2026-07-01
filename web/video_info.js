@@ -96,6 +96,31 @@ function updatePreview(node) {
     }
 }
 
+// Probe the picked clip on the backend (fps/frames need PyAV, not the browser) and
+// fill the info panel immediately — no graph run required.
+async function fetchInfo(node) {
+    const w = node.widgets?.find((w) => w.name === "video");
+    const value = (w?.value || "").trim();
+    if (!value) {
+        node.__ranomanyInfo = null;
+        renderInfo(node, null);
+        return;
+    }
+    const token = ++node.__ranomanyInfoReq;
+    try {
+        const r = await api.fetchApi(`/ranomany/video-info?file=${encodeURIComponent(value)}`);
+        if (token !== node.__ranomanyInfoReq) return; // a newer pick superseded this one
+        if (!r.ok) return;
+        const info = await r.json();
+        if (info && !info.error) {
+            node.__ranomanyInfo = info;
+            renderInfo(node, info);
+        }
+    } catch (e) {
+        console.warn("[Ranomany] video-info failed", e);
+    }
+}
+
 app.registerExtension({
     name: "Ranomany.VideoInfoPreview",
 
@@ -119,16 +144,18 @@ app.registerExtension({
         const infoBox = document.createElement("div");
         infoBox.className = "ranomany-video-info";
         node.__ranomanyInfoBox = infoBox;
+        node.__ranomanyInfoReq = 0;
         node.addDOMWidget("videoInfo", "video-info", infoBox, { serialize: false });
         renderInfo(node, node.__ranomanyInfo || null);
 
-        // Refresh the preview when the user picks/uploads a different clip.
+        // Refresh preview + info when the user picks/uploads a different clip.
         const w = node.widgets?.find((w) => w.name === "video");
         if (w) {
             const orig = w.callback;
             w.callback = function (v) {
                 orig?.apply(this, arguments);
                 updatePreview(node);
+                fetchInfo(node);
             };
         }
 
@@ -137,8 +164,12 @@ app.registerExtension({
         node.onConfigure = function () {
             origConfigure?.apply(this, arguments);
             updatePreview(node);
+            fetchInfo(node);
         };
-        requestAnimationFrame(() => updatePreview(node));
+        requestAnimationFrame(() => {
+            updatePreview(node);
+            fetchInfo(node);
+        });
 
         // After a run, snap to the file the backend actually loaded.
         const origOnExecuted = node.onExecuted;

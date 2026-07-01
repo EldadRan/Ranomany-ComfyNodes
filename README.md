@@ -406,7 +406,7 @@ This is Phase 1 of a PyAV-backed video toolset; later phases (frame extraction t
 | `width` | INT | Frame width in pixels |
 | `height` | INT | Frame height in pixels |
 
-In **app mode** the node shows an info panel (resolution / fps / frames / duration) that fills in after a run, since the editor-only native preview and dimension label aren't shown there.
+In **app mode** the node shows an info panel (resolution / fps / frames / duration) that fills in **as soon as you pick or upload a clip** — no graph run needed. It's backed by a small `GET /ranomany/video-info` route that runs the same PyAV probe (fps and exact frame count aren't available to the browser's HTML5 video API).
 
 An unreadable/corrupt file logs a warning and returns zeros rather than failing the run.
 

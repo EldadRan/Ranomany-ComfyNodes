@@ -55,6 +55,12 @@ try:
 except Exception:
     print(f"[Ranomany-ComfyNodes] latest-output route failed:\n{traceback.format_exc()}")
 
+try:
+    _load("nodes/video_info/server.py")
+    print("[Ranomany-ComfyNodes] video-info route registered")
+except Exception:
+    print(f"[Ranomany-ComfyNodes] video-info route failed:\n{traceback.format_exc()}")
+
 WEB_DIRECTORY = "./web"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
