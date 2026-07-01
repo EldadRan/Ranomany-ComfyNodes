@@ -422,6 +422,14 @@ class OpenAIImageMultiRef:
                     "display": "number",
                     "tooltip": "Output height in pixels. Snapped to nearest multiple of 16. Max 3840px. Ratio and pixel-count limits auto-corrected before the API call.",
                 }),
+                "quality":            (["auto", "low", "medium", "high"], {"default": "auto"}),
+                "background":         (["auto", "opaque"], {"default": "auto"}),
+                "output_format":      (["png", "jpeg", "webp"], {"default": "png"}),
+                "output_compression": ("INT", {
+                    "default": 85, "min": 0, "max": 100, "step": 1,
+                    "tooltip": "Compression level for jpeg/webp (0–100). Ignored for png.",
+                }),
+                "moderation":         (["auto", "low"], {"default": "auto"}),
                 "n":        ("INT", {"default": 1, "min": 1, "max": 10, "step": 1}),
                 "retries":  ("INT", {"default": 0, "min": 0, "max": 3, "step": 1}),
             },
@@ -448,6 +456,11 @@ class OpenAIImageMultiRef:
         api_key:  str  = "",
         width:    int  = 1024,
         height:   int  = 1024,
+        quality:            str = "auto",
+        background:         str = "auto",
+        output_format:      str = "png",
+        output_compression: int = 85,
+        moderation:         str = "auto",
         n:        int  = 1,
         retries:  int  = 0,
     ):
@@ -505,14 +518,20 @@ class OpenAIImageMultiRef:
                 image=image_files,
                 prompt=prompt.strip(),
                 size=size,
+                quality=quality,
+                background=background,
+                output_format=output_format,
+                moderation=moderation,
                 n=int(n),
             )
+            if output_format in ("jpeg", "webp"):
+                kwargs["output_compression"] = int(output_compression)
             if mask_file is not None:
                 mask_file.seek(0)
                 kwargs["mask"] = mask_file
             for f in image_files:
                 f.seek(0)
-            log.info(f"[OpenAIImageMultiRef] edit: {width}×{height} images={len(image_files)} n={n}")
+            log.info(f"[OpenAIImageMultiRef] edit: {width}×{height} images={len(image_files)} quality={quality} n={n}")
             return client.images.edit(**kwargs)
 
         response = None
