@@ -172,6 +172,45 @@ Generate images from text, or edit/compose existing images using the Gemini mult
 
 ---
 
+### `gemini_image` — Gemini Image Edit (Multi-Ref)
+
+Editing / composition variant of the Gemini node with **one mandatory image plus up to three optional reference images**. The primary `image` is always sent to the model first; `image_2`–`image_4` are appended in order as additional references (Gemini processes image parts in order). Same output as the base node.
+
+**Category:** `Ranomany/Gemini`
+**Dependencies:** `google-genai>=1.0.0`
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | STRING | — | Refer to the inputs as "first image", "second image", etc. |
+| `model` | dropdown | `gemini-3.1-flash-image-preview` | Flash = fast & cheap; Pro = highest quality (enables thinking) |
+| `image` | IMAGE | **required** | Primary image — always sent first. Accepts a batch. |
+| `image_2` / `image_3` / `image_4` | IMAGE | *(optional)* | Additional reference images, appended in order. Each accepts a batch. |
+| `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
+| `image_size` | dropdown | `1K` | Output resolution: `1K`, `2K`, or `4K` |
+| `aspect_ratio` | dropdown | `none` | `none`, `1:1`, `16:9`, `9:16`, `4:3`, `3:4` |
+| `thinking_level` | dropdown | `low` | `low` or `high` — only applies to the Pro model |
+| `retries` | INT (0–3) | `0` | Auto-retry on transient errors (429, 500–504) with backoff |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `images` | IMAGE | Batch tensor (B×H×W×3, float32, 0–1). |
+| `key_status` | STRING | How the API key was resolved. |
+
+#### Example workflow
+
+```
+[Load Image] ─────image───► [Gemini Image Edit (Multi-Ref)]
+[Load Image] ─────image_2──►   prompt = "Place the product from the first image
+[Load Image] ─────image_3──►            into the scene from the second image"
+                               ──images──► [Preview Image]
+```
+
+---
+
 ### `openai_image` — OpenAI Image Generate
 
 Generate images from text, or edit/inpaint existing images using OpenAI's `gpt-image-2` (ChatGPT Images 2.0). Outputs a standard ComfyUI `IMAGE` batch tensor.
@@ -223,6 +262,45 @@ Generate images from text, or edit/inpaint existing images using OpenAI's `gpt-i
 **`.env` file** (create once in the ComfyUI root):
 ```
 OPENAI_API_KEY=sk-...
+```
+
+---
+
+### `openai_image` — OpenAI Image Edit (Multi-Ref)
+
+Editing / composition variant of the OpenAI node with **one mandatory image plus up to three optional reference images**. Always runs in edit mode (`images.edit`). The primary `image` is sent first — gpt-image preserves it with the highest fidelity — and `image_2`–`image_4` are appended as extra references. The OpenAI edit endpoint accepts up to **16 images** total (batches are flattened; anything beyond 16 is dropped with a warning).
+
+**Category:** `Ranomany/OpenAI`
+**Dependencies:** `openai>=1.0.0`
+
+#### Inputs
+
+| Input | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | STRING | — | Describe the edit / composition. |
+| `model` | dropdown | `gpt-image-2` | Currently only `gpt-image-2` |
+| `image` | IMAGE | **required** | Primary image — sent first, preserved with highest fidelity. |
+| `image_2` / `image_3` / `image_4` | IMAGE | *(optional)* | Additional reference images, appended in order. |
+| `mask` | MASK | *(optional)* | Inpainting mask for the **primary** image — `1` = edit here, `0` = keep. |
+| `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
+| `width` / `height` | INT | `1024` | Snapped to multiples of 16, max edge 3840px, ratio ≤3:1, pixels 655,360–8,294,400 (auto-corrected). |
+| `n` | INT (1–10) | `1` | Number of images to generate |
+| `retries` | INT (0–3) | `0` | Auto-retry on transient 429/5xx errors |
+
+#### Outputs
+
+| Output | Type | Description |
+|---|---|---|
+| `images` | IMAGE | Batch tensor (B×H×W×3, float32, 0–1). |
+| `key_status` | STRING | How the API key was resolved. |
+
+#### Example workflow
+
+```
+[Load Image] ─────image───► [OpenAI Image Edit (Multi-Ref)]
+[Load Image] ─────image_2──►   prompt = "Composite the subject from the first image
+[Load Image] ─────image_3──►            with the background from the second"
+                               ──images──► [Save Image (no workflow metadata)]
 ```
 
 ---

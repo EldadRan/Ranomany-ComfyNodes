@@ -374,10 +374,186 @@ class OpenAIImage:
         return (batch, key_status)
 
 
+_MAX_EDIT_IMAGES = 16
+
+
+class OpenAIImageMultiRef:
+    """gpt-image-2 editing with a mandatory first image + up to 3 optional reference images.
+
+    Always runs in edit mode: `image` is required and sent first (gpt-image
+    preserves the first image with the highest fidelity), and `image_2`/`image_3`/
+    `image_4` are appended as extra reference images. The OpenAI images.edit
+    endpoint accepts up to 16 images as an array. Optional `mask` applies to the
+    first image.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "Describe the edit / composition you want…",
+                }),
+                "model": (IMAGE_MODELS, {"default": DEFAULT_MODEL}),
+                "image": ("IMAGE", {"tooltip": "Primary image — sent first, preserved with highest fidelity."}),
+            },
+            "optional": {
+                "image_2":  ("IMAGE", {"tooltip": "Optional reference image."}),
+                "image_3":  ("IMAGE", {"tooltip": "Optional reference image."}),
+                "image_4":  ("IMAGE", {"tooltip": "Optional reference image."}),
+                "mask":     ("MASK", {"tooltip": "Optional edit mask for the primary image."}),
+                "api_key":  ("STRING", {
+                    "default": "",
+                    "password": True,
+                    "tooltip": "Leave blank to use OPENAI_API_KEY env var or .env file.",
+                }),
+                "width":    ("INT", {
+                    "default": 1024, "min": 64, "max": 3840, "step": 16,
+                    "display": "number",
+                    "tooltip": "Output width in pixels. Snapped to nearest multiple of 16. Max 3840px. Ratio and pixel-count limits auto-corrected before the API call.",
+                }),
+                "height":   ("INT", {
+                    "default": 1024, "min": 64, "max": 3840, "step": 16,
+                    "display": "number",
+                    "tooltip": "Output height in pixels. Snapped to nearest multiple of 16. Max 3840px. Ratio and pixel-count limits auto-corrected before the API call.",
+                }),
+                "n":        ("INT", {"default": 1, "min": 1, "max": 10, "step": 1}),
+                "retries":  ("INT", {"default": 0, "min": 0, "max": 3, "step": 1}),
+            },
+        }
+
+    RETURN_TYPES  = ("IMAGE", "STRING")
+    RETURN_NAMES  = ("images", "key_status")
+    FUNCTION      = "generate"
+    CATEGORY      = "Ranomany/OpenAI"
+    OUTPUT_NODE   = False
+
+    def generate(
+        self,
+        prompt:   str,
+        model:    str  = DEFAULT_MODEL,
+        image:    torch.Tensor = None,
+        image_2:  torch.Tensor = None,
+        image_3:  torch.Tensor = None,
+        image_4:  torch.Tensor = None,
+        mask:     torch.Tensor = None,
+        api_key:  str  = "",
+        width:    int  = 1024,
+        height:   int  = 1024,
+        n:        int  = 1,
+        retries:  int  = 0,
+    ):
+        if image is None:
+            raise ValueError("OpenAIImageMultiRef: the primary `image` input is required.")
+
+        width, height, size, size_warnings = _autocorrect_size(int(width), int(height))
+        for w in size_warnings:
+            log.warning(w)
+
+        client, key_status = _get_client(api_key)
+
+        # Flatten all provided images (in order) into a list of PNG file objects.
+        first_frame = None
+        image_files = []
+        for img in (image, image_2, image_3, image_4):
+            if img is None:
+                continue
+            frames = img if img.ndim == 4 else img.unsqueeze(0)
+            for i in range(frames.shape[0]):
+                frame = frames[i]
+                if first_frame is None:
+                    first_frame = frame
+                f = io.BytesIO(_tensor_to_png_bytes(frame))
+                f.name = f"image{len(image_files)}.png"
+                image_files.append(f)
+
+        if len(image_files) > _MAX_EDIT_IMAGES:
+            log.warning(
+                f"[OpenAIImageMultiRef] {len(image_files)} images provided; "
+                f"OpenAI accepts at most {_MAX_EDIT_IMAGES} — using the first {_MAX_EDIT_IMAGES}."
+            )
+            image_files = image_files[:_MAX_EDIT_IMAGES]
+
+        # Optional mask applies to the first image.
+        mask_file = None
+        if mask is not None:
+            rgba_bytes = _tensor_and_mask_to_rgba_bytes(first_frame, mask)
+            mask_file = io.BytesIO(rgba_bytes)
+            mask_file.name = "mask.png"
+
+        retries = max(0, min(int(retries), len(_RETRY_DELAYS)))
+
+        def _call():
+            kwargs = dict(
+                model=model,
+                image=image_files,
+                prompt=prompt.strip(),
+                size=size,
+                n=int(n),
+            )
+            if mask_file is not None:
+                mask_file.seek(0)
+                kwargs["mask"] = mask_file
+            for f in image_files:
+                f.seek(0)
+            log.info(f"[OpenAIImageMultiRef] edit: {width}×{height} images={len(image_files)} n={n}")
+            return client.images.edit(**kwargs)
+
+        response = None
+        for attempt in range(retries + 1):
+            try:
+                response = _call()
+                break
+            except Exception as exc:
+                if not _is_retryable(exc) or attempt >= retries:
+                    raise
+                delay = _RETRY_DELAYS[attempt]
+                log.warning(f"[OpenAIImageMultiRef] transient error attempt {attempt+1}: {exc}; retry in {delay}s")
+                time.sleep(delay)
+
+        tensors = []
+        for item in response.data:
+            if item.b64_json:
+                raw = base64.b64decode(item.b64_json)
+            elif item.url:
+                import urllib.request
+                with urllib.request.urlopen(item.url) as resp:
+                    raw = resp.read()
+            else:
+                raise RuntimeError("OpenAIImageMultiRef: response item has neither b64_json nor url.")
+            pil = Image.open(io.BytesIO(raw)).convert("RGB")
+            tensors.append(_tensor_from_pil(pil))
+
+        if not tensors:
+            raise RuntimeError("OpenAIImageMultiRef: no images returned by the API.")
+
+        if len(tensors) > 1:
+            max_h = max(t.shape[0] for t in tensors)
+            max_w = max(t.shape[1] for t in tensors)
+            padded = []
+            for t in tensors:
+                h, w = t.shape[:2]
+                if h < max_h or w < max_w:
+                    pad = torch.zeros(max_h, max_w, 3, dtype=t.dtype)
+                    pad[:h, :w] = t
+                    padded.append(pad)
+                else:
+                    padded.append(t)
+            batch = torch.stack(padded, dim=0)
+        else:
+            batch = tensors[0].unsqueeze(0)
+
+        return (batch, key_status)
+
+
 NODE_CLASS_MAPPINGS = {
     "OpenAIImage": OpenAIImage,
+    "OpenAIImageMultiRef": OpenAIImageMultiRef,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "OpenAIImage": "OpenAI Image Generate",
+    "OpenAIImageMultiRef": "OpenAI Image Edit (Multi-Ref)",
 }

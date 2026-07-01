@@ -241,10 +241,156 @@ class GeminiImage:
         return (batch, key_status)
 
 
+class GeminiImageMultiRef:
+    """Gemini image editing with a mandatory first image + up to 3 optional reference images.
+
+    Same as GeminiImage, but the input `image` is required and always sent first,
+    and `image_2`/`image_3`/`image_4` are appended (in order) as extra reference
+    images. Gemini processes image Parts in `contents` array order.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {
+                    "multiline": True,
+                    "default": "",
+                    "placeholder": "Describe the edit / composition you want…",
+                }),
+                "model": (IMAGE_MODELS, {"default": DEFAULT_FLASH}),
+                "image": ("IMAGE", {"tooltip": "Primary image — always sent first."}),
+            },
+            "optional": {
+                "image_2":        ("IMAGE", {"tooltip": "Optional reference image."}),
+                "image_3":        ("IMAGE", {"tooltip": "Optional reference image."}),
+                "image_4":        ("IMAGE", {"tooltip": "Optional reference image."}),
+                "api_key":        ("STRING", {"default": "", "password": True, "tooltip": "Leave blank to use GEMINI_API_KEY env var or .env file. Wire from a GeminiAPIKey node for shared key management."}),
+                "image_size":     (["1K", "2K", "4K"], {"default": "1K"}),
+                "aspect_ratio":   (["none", "1:1", "16:9", "9:16", "4:3", "3:4"], {"default": "none"}),
+                "thinking_level": (["low", "high"], {"default": "low"}),
+                "retries":        ("INT", {"default": 0, "min": 0, "max": 3, "step": 1}),
+            },
+        }
+
+    RETURN_TYPES    = ("IMAGE", "STRING")
+    RETURN_NAMES    = ("images", "key_status")
+    FUNCTION        = "generate"
+    CATEGORY        = "Ranomany/Gemini"
+    OUTPUT_NODE     = False
+
+    def generate(
+        self,
+        prompt:         str,
+        model:          str  = DEFAULT_FLASH,
+        image:          torch.Tensor = None,
+        image_2:        torch.Tensor = None,
+        image_3:        torch.Tensor = None,
+        image_4:        torch.Tensor = None,
+        api_key:        str  = "",
+        image_size:     str  = "1K",
+        aspect_ratio:   str  = "none",
+        thinking_level: str  = "low",
+        retries:        int  = 0,
+    ):
+        from google.genai import types
+
+        if image is None:
+            raise ValueError("GeminiImageMultiRef: the primary `image` input is required.")
+
+        client, key_status = _get_client(api_key)
+
+        # Build contents: every provided image (in order), then the prompt.
+        contents = []
+        for img in (image, image_2, image_3, image_4):
+            if img is None:
+                continue
+            if img.ndim == 3:
+                img = img.unsqueeze(0)
+            for i in range(img.shape[0]):
+                arr = (img[i].cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+                buf = io.BytesIO()
+                Image.fromarray(arr).save(buf, format="PNG")
+                contents.append(
+                    types.Part.from_bytes(data=buf.getvalue(), mime_type="image/png")
+                )
+
+        if prompt.strip():
+            contents.append(prompt.strip())
+
+        # Build generation config
+        img_cfg_kwargs = {}
+        if image_size and image_size != "none":
+            img_cfg_kwargs["image_size"] = image_size.upper()
+        if aspect_ratio and aspect_ratio != "none":
+            img_cfg_kwargs["aspect_ratio"] = aspect_ratio
+
+        gen_config_kwargs = {
+            "response_modalities": ["IMAGE", "TEXT"],
+        }
+        if img_cfg_kwargs:
+            gen_config_kwargs["image_config"] = types.ImageConfig(**img_cfg_kwargs)
+        if "pro" in model:
+            gen_config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=thinking_level)
+
+        gen_config = types.GenerateContentConfig(**gen_config_kwargs)
+
+        # Call with retry
+        retries = max(0, min(int(retries), len(_RETRY_DELAYS)))
+        response = None
+        for attempt in range(retries + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model, contents=contents, config=gen_config,
+                )
+                break
+            except Exception as exc:
+                if not _is_retryable(exc) or attempt >= retries:
+                    raise
+                delay = _RETRY_DELAYS[attempt]
+                log.warning(f"[GeminiImageMultiRef] transient error attempt {attempt+1}: {exc}; retry in {delay}s")
+                time.sleep(delay)
+
+        # Extract image parts
+        tensors = []
+        for part in response.parts:
+            if part.inline_data and part.inline_data.data:
+                pil = Image.open(io.BytesIO(part.inline_data.data)).convert("RGB")
+                tensors.append(_tensor_from_pil(pil))
+
+        if not tensors:
+            text_parts = [p.text for p in response.parts if p.text]
+            raise RuntimeError(
+                "GeminiImageMultiRef: no images returned. "
+                f"Model said: {' '.join(text_parts) or '(nothing)'}"
+            )
+
+        # Stack into B×H×W×3 batch, padding smaller images to the largest.
+        if len(tensors) > 1:
+            max_h = max(t.shape[0] for t in tensors)
+            max_w = max(t.shape[1] for t in tensors)
+            padded = []
+            for t in tensors:
+                h, w = t.shape[:2]
+                if h < max_h or w < max_w:
+                    pad = torch.zeros(max_h, max_w, 3, dtype=t.dtype)
+                    pad[:h, :w] = t
+                    padded.append(pad)
+                else:
+                    padded.append(t)
+            batch = torch.stack(padded, dim=0)
+        else:
+            batch = tensors[0].unsqueeze(0)
+
+        return (batch, key_status)
+
+
 NODE_CLASS_MAPPINGS = {
     "GeminiImage": GeminiImage,
+    "GeminiImageMultiRef": GeminiImageMultiRef,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "GeminiImage": "Gemini Image Generate",
+    "GeminiImageMultiRef": "Gemini Image Edit (Multi-Ref)",
 }
