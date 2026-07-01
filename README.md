@@ -187,6 +187,7 @@ Editing / composition variant of the Gemini node with **one mandatory image plus
 | `model` | dropdown | `gemini-3.1-flash-image-preview` | Flash = fast & cheap; Pro = highest quality (enables thinking) |
 | `image` | IMAGE | **required** | Primary image — always sent first. Accepts a batch. |
 | `image_2` / `image_3` / `image_4` | IMAGE | *(optional)* | Additional reference images, appended in order. Each accepts a batch. |
+| `use_image_2` / `use_image_3` / `use_image_4` | BOOLEAN | `use` | Set to `skip` to ignore that slot at run time even when a loader is wired to it. Useful in app mode, where a loader always emits an image. |
 | `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
 | `image_size` | dropdown | `1K` | Output resolution: `1K`, `2K`, or `4K` |
 | `aspect_ratio` | dropdown | `none` | `none`, `1:1`, `16:9`, `9:16`, `4:3`, `3:4` |
@@ -281,6 +282,7 @@ Editing / composition variant of the OpenAI node with **one mandatory image plus
 | `model` | dropdown | `gpt-image-2` | Currently only `gpt-image-2` |
 | `image` | IMAGE | **required** | Primary image — sent first, preserved with highest fidelity. |
 | `image_2` / `image_3` / `image_4` | IMAGE | *(optional)* | Additional reference images, appended in order. |
+| `use_image_2` / `use_image_3` / `use_image_4` | BOOLEAN | `use` | Set to `skip` to ignore that slot at run time even when a loader is wired to it. Useful in app mode, where a loader always emits an image. |
 | `mask` | MASK | *(optional)* | Inpainting mask for the **primary** image — `1` = edit here, `0` = keep. |
 | `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
 | `width` / `height` | INT | `1024` | Snapped to multiples of 16, max edge 3840px, ratio ≤3:1, pixels 655,360–8,294,400 (auto-corrected). |

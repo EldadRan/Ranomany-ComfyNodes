@@ -263,8 +263,11 @@ class GeminiImageMultiRef:
             },
             "optional": {
                 "image_2":        ("IMAGE", {"tooltip": "Optional reference image."}),
+                "use_image_2":    ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip", "tooltip": "When off, image_2 is ignored even if something is wired to it (for app mode, where a loader always emits an image)."}),
                 "image_3":        ("IMAGE", {"tooltip": "Optional reference image."}),
+                "use_image_3":    ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip", "tooltip": "When off, image_3 is ignored even if something is wired to it."}),
                 "image_4":        ("IMAGE", {"tooltip": "Optional reference image."}),
+                "use_image_4":    ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip", "tooltip": "When off, image_4 is ignored even if something is wired to it."}),
                 "api_key":        ("STRING", {"default": "", "password": True, "tooltip": "Leave blank to use GEMINI_API_KEY env var or .env file. Wire from a GeminiAPIKey node for shared key management."}),
                 "image_size":     (["1K", "2K", "4K"], {"default": "1K"}),
                 "aspect_ratio":   (["none", "1:1", "16:9", "9:16", "4:3", "3:4"], {"default": "none"}),
@@ -285,8 +288,11 @@ class GeminiImageMultiRef:
         model:          str  = DEFAULT_FLASH,
         image:          torch.Tensor = None,
         image_2:        torch.Tensor = None,
+        use_image_2:    bool = True,
         image_3:        torch.Tensor = None,
+        use_image_3:    bool = True,
         image_4:        torch.Tensor = None,
+        use_image_4:    bool = True,
         api_key:        str  = "",
         image_size:     str  = "1K",
         aspect_ratio:   str  = "none",
@@ -300,10 +306,18 @@ class GeminiImageMultiRef:
 
         client, key_status = _get_client(api_key)
 
-        # Build contents: every provided image (in order), then the prompt.
+        # Build contents: every enabled + provided image (in order), then the prompt.
+        # The use_* toggles let a slot be skipped at run time even when a loader is
+        # wired to it (loaders always emit an image — relevant in app mode).
         contents = []
-        for img in (image, image_2, image_3, image_4):
-            if img is None:
+        slots = (
+            (image, True),
+            (image_2, use_image_2),
+            (image_3, use_image_3),
+            (image_4, use_image_4),
+        )
+        for img, use in slots:
+            if img is None or not use:
                 continue
             if img.ndim == 3:
                 img = img.unsqueeze(0)

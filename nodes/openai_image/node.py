@@ -400,9 +400,12 @@ class OpenAIImageMultiRef:
                 "image": ("IMAGE", {"tooltip": "Primary image — sent first, preserved with highest fidelity."}),
             },
             "optional": {
-                "image_2":  ("IMAGE", {"tooltip": "Optional reference image."}),
-                "image_3":  ("IMAGE", {"tooltip": "Optional reference image."}),
-                "image_4":  ("IMAGE", {"tooltip": "Optional reference image."}),
+                "image_2":     ("IMAGE", {"tooltip": "Optional reference image."}),
+                "use_image_2": ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip", "tooltip": "When off, image_2 is ignored even if something is wired to it (for app mode, where a loader always emits an image)."}),
+                "image_3":     ("IMAGE", {"tooltip": "Optional reference image."}),
+                "use_image_3": ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip", "tooltip": "When off, image_3 is ignored even if something is wired to it."}),
+                "image_4":     ("IMAGE", {"tooltip": "Optional reference image."}),
+                "use_image_4": ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip", "tooltip": "When off, image_4 is ignored even if something is wired to it."}),
                 "mask":     ("MASK", {"tooltip": "Optional edit mask for the primary image."}),
                 "api_key":  ("STRING", {
                     "default": "",
@@ -436,8 +439,11 @@ class OpenAIImageMultiRef:
         model:    str  = DEFAULT_MODEL,
         image:    torch.Tensor = None,
         image_2:  torch.Tensor = None,
+        use_image_2: bool = True,
         image_3:  torch.Tensor = None,
+        use_image_3: bool = True,
         image_4:  torch.Tensor = None,
+        use_image_4: bool = True,
         mask:     torch.Tensor = None,
         api_key:  str  = "",
         width:    int  = 1024,
@@ -454,11 +460,19 @@ class OpenAIImageMultiRef:
 
         client, key_status = _get_client(api_key)
 
-        # Flatten all provided images (in order) into a list of PNG file objects.
+        # Flatten all enabled + provided images (in order) into a list of PNG files.
+        # The use_* toggles let a slot be skipped at run time even when a loader is
+        # wired to it (loaders always emit an image — relevant in app mode).
         first_frame = None
         image_files = []
-        for img in (image, image_2, image_3, image_4):
-            if img is None:
+        slots = (
+            (image, True),
+            (image_2, use_image_2),
+            (image_3, use_image_3),
+            (image_4, use_image_4),
+        )
+        for img, use in slots:
+            if img is None or not use:
                 continue
             frames = img if img.ndim == 4 else img.unsqueeze(0)
             for i in range(frames.shape[0]):
