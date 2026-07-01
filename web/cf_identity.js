@@ -86,6 +86,17 @@ app.registerExtension({
 
         node.__ranomanyCfReq = 0;
 
+        // These three widgets are data carriers the JS fills from the route (the only
+        // channel from browser → execution) — not user inputs. Lock them read-only so
+        // they display the fetched identity but can't be hand-edited.
+        for (const name of ["email", "authenticated", "identity_json"]) {
+            const w = node.widgets?.find((w) => w.name === name);
+            if (w) {
+                w.disabled = true;
+                if (w.options) w.options.readonly = true;
+            }
+        }
+
         const box = document.createElement("div");
         box.className = "ranomany-cf-info";
         node.__ranomanyCfBox = box;
