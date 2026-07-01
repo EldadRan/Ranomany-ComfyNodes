@@ -8,3 +8,4 @@
 google-genai>=1.0.0   # gemini_image, gemini_veo
 openai>=1.0.0         # openai_image
 mutagen>=1.47.0       # gemini_veo (video/audio metadata)
+av>=11.0              # video_info (PyAV; ffmpeg-based video toolset)

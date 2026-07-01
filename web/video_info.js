@@ -1,0 +1,108 @@
+import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
+
+// "Load Video (Info)" companion.
+//
+// Picker: the native video_upload widget (input-folder browser + upload button).
+// Preview: a <video controls> DOM widget that plays the picked/uploaded clip inline,
+// mirroring our Save Video preview. It refreshes when the user picks a file, when a
+// saved workflow is restored, and after a run (from the node's ui.gifs payload).
+
+const CLASS = "RanomanyLoadVideoInfo";
+
+// Build a /view URL from a picker value like "sub/dir/clip.mp4 [input]".
+function viewURL(value) {
+    let v = (value || "").trim();
+    let type = "input";
+    const m = v.match(/ \[([^\]]+)\]$/);
+    if (m) {
+        type = m[1];
+        v = v.slice(0, -m[0].length);
+    }
+    if (!v) return "";
+    let subfolder = "";
+    let filename = v;
+    const i = v.lastIndexOf("/");
+    if (i !== -1) {
+        subfolder = v.slice(0, i);
+        filename = v.slice(i + 1);
+    }
+    const p = new URLSearchParams({ filename, subfolder, type });
+    return api.apiURL(`/view?${p}&t=${Date.now()}`);
+}
+
+function updatePreview(node) {
+    const el = node.__ranomanyVideoEl;
+    if (!el) return;
+    const w = node.widgets?.find((w) => w.name === "video");
+    const url = viewURL(w?.value);
+    if (url) {
+        el.src = url;
+        el.style.display = "";
+        el.load();
+    } else {
+        el.removeAttribute("src");
+        el.style.display = "none";
+    }
+}
+
+app.registerExtension({
+    name: "Ranomany.VideoInfoPreview",
+
+    async nodeCreated(node) {
+        if (node.comfyClass !== CLASS) return;
+
+        const el = document.createElement("video");
+        el.controls = true;
+        el.loop = false;
+        el.style.cssText = [
+            "width:100%",
+            "height:200px",
+            "object-fit:contain",
+            "background:#111",
+            "border-radius:4px",
+            "display:none",
+        ].join(";");
+        node.__ranomanyVideoEl = el;
+        node.addDOMWidget("videoPreview", "video", el, { serialize: false });
+
+        // Refresh the preview when the user picks/uploads a different clip.
+        const w = node.widgets?.find((w) => w.name === "video");
+        if (w) {
+            const orig = w.callback;
+            w.callback = function (v) {
+                orig?.apply(this, arguments);
+                updatePreview(node);
+            };
+        }
+
+        // Re-draw on workflow load, and once on creation.
+        const origConfigure = node.onConfigure;
+        node.onConfigure = function () {
+            origConfigure?.apply(this, arguments);
+            updatePreview(node);
+        };
+        requestAnimationFrame(() => updatePreview(node));
+
+        // After a run, snap to the file the backend actually loaded.
+        const origOnExecuted = node.onExecuted;
+        node.onExecuted = function (message) {
+            origOnExecuted?.apply(this, arguments);
+            const clips = message?.gifs;
+            if (!clips?.length) {
+                updatePreview(node);
+                return;
+            }
+            const { filename, subfolder = "", type = "input" } = clips[0];
+            el.src = api.apiURL(
+                `/view?filename=${encodeURIComponent(filename)}`
+                + `&subfolder=${encodeURIComponent(subfolder)}`
+                + `&type=${encodeURIComponent(type)}`
+                + `&t=${Date.now()}`
+            );
+            el.style.display = "";
+            el.load();
+            app.graph.setDirtyCanvas(true, false);
+        };
+    },
+});

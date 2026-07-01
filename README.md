@@ -12,6 +12,7 @@ Ranomany-ComfyNodes/
 │   ├── save_video.js            # Inline video preview for Save Video node
 │   ├── camera_angle.bundle.js   # 3D camera-angle GUI (Vue + Three.js, built)
 │   ├── load_image_from_output.js# App-mode <img> preview + refresh for Load Image (Edit Mode)
+│   ├── video_info.js            # Inline video player for Load Video (Info)
 │   └── assets/main.css          # Styles for the camera-angle GUI
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
@@ -23,7 +24,8 @@ Ranomany-ComfyNodes/
     ├── wan_video/               # Video generation / editing via Alibaba Wan 2.7
     ├── camera_angle/            # 3D Camera Angle control + Camera Angle (Load Image)
     │   └── gui/                 # Vue + Three.js source for the GUI bundle (rebuildable)
-    └── load_latest_output/      # Load Image (Edit Mode) — native picker + newest-output
+    ├── load_latest_output/      # Load Image (Edit Mode) — native picker + newest-output
+    └── video_info/              # Load Video (Info) — metadata + inline playback (PyAV)
 ```
 
 ---
@@ -379,6 +381,38 @@ exiftool video_00001_.mp4
 ```
 
 **Note:** MP4 does not use EXIF. The `extra_metadata` JSON format is the same as `SaveImageNoMeta`, but the storage mechanism is QuickTime atoms (MP4's native metadata system). Requires `mutagen>=1.47.0` (`pip install mutagen`).
+
+---
+
+### `video_info` — Load Video (Info)
+
+Loads a video from the ComfyUI input folder (native picker with an **upload** button), reads its metadata, and **plays it inline** in the node — the same in-node playback as **Save Video**. It also passes the video through as a `VIDEO` handle, so you can wire it straight into **Save Video** or other video nodes.
+
+This is Phase 1 of a PyAV-backed video toolset; later phases (frame extraction to `IMAGE`, trimming from frame N) build on the same `av` dependency.
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** `av>=11.0` (PyAV — ffmpeg's libraries in-process; no ffmpeg binary needed)
+
+| Input | Type | Notes |
+|---|---|---|
+| `video` | picker + upload | Choose a video from the input folder or upload one |
+
+| Output | Type | Description |
+|---|---|---|
+| `video` | VIDEO | Filepath dict (`{"filepath", "mime_type"}`). Wire to **Save Video** or another video node. |
+| `fps` | FLOAT | Frames per second (from `avg_frame_rate`) |
+| `frame_count` | INT | Total frames. Falls back to `round(duration × fps)` when the container doesn't report a frame count. |
+| `duration_seconds` | FLOAT | Duration in seconds |
+| `width` | INT | Frame width in pixels |
+| `height` | INT | Frame height in pixels |
+
+An unreadable/corrupt file logs a warning and returns zeros rather than failing the run.
+
+```
+[Load Video (Info)] ──video──► [Save Video]
+                    ──fps───► ...
+                    ──frame_count──► ...
+```
 
 ---
 
