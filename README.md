@@ -286,11 +286,6 @@ Editing / composition variant of the OpenAI node with **one mandatory image plus
 | `mask` | MASK | *(optional)* | Inpainting mask for the **primary** image — `1` = edit here, `0` = keep. |
 | `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
 | `width` / `height` | INT | `1024` | Snapped to multiples of 16, max edge 3840px, ratio ≤3:1, pixels 655,360–8,294,400 (auto-corrected). |
-| `quality` | dropdown | `auto` | `auto`, `low`, `medium`, `high` |
-| `background` | dropdown | `auto` | `auto`, `opaque` |
-| `output_format` | dropdown | `png` | `png`, `jpeg`, `webp` |
-| `output_compression` | INT (0–100) | `85` | Compression for `jpeg`/`webp`. Ignored for `png`. |
-| `moderation` | dropdown | `auto` | `auto`, `low` — content filtering strictness |
 | `n` | INT (1–10) | `1` | Number of images to generate |
 | `retries` | INT (0–3) | `0` | Auto-retry on transient 429/5xx errors |
 
