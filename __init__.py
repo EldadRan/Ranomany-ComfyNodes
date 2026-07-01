@@ -29,6 +29,7 @@ _NODE_FILES = [
     ("nodes/camera_angle/node.py",       "camera_angle"),
     ("nodes/video_info/node.py",         "video_info"),
     ("nodes/cf_identity/node.py",        "cf_identity"),
+    ("nodes/metadata_builder/node.py",   "metadata_builder"),
 ]
 
 for _rel, _label in _NODE_FILES:

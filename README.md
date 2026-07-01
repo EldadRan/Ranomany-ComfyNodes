@@ -27,7 +27,8 @@ Ranomany-ComfyNodes/
     │   └── gui/                 # Vue + Three.js source for the GUI bundle (rebuildable)
     ├── load_latest_output/      # Load Image (Edit Mode) — native picker + newest-output
     ├── video_info/              # Load Video (Info) + Extract Video Frames (PyAV)
-    └── cf_identity/             # Cloudflare Access Identity — CF headers into the workflow
+    ├── cf_identity/             # Cloudflare Access Identity — CF headers into the workflow
+    └── metadata_builder/        # Build Metadata (Text) — JSON for Save Image/Video extra_metadata
 ```
 
 ---
@@ -488,6 +489,31 @@ RANOMANY_CF_SIMULATED_IDENTITY={"email":"you@example.com","headers":{"Cf-Ipcount
 ```
 
 The node then reports that identity with the panel showing **✓ authenticated (simulated)**, and `identity_json` carries the simulated `headers` + `claims` — so your whole workflow / metadata chain behaves like production. The real Cloudflare header/JWT always takes precedence, so leaving these unset in production changes nothing. (Alternatively, a browser header-injection extension like ModHeader can add a real `Cf-Access-Authenticated-User-Email` header to localhost requests — no code, exercises the exact header path.)
+
+---
+
+### `metadata_builder` — Build Metadata (Text)
+
+Compiles arbitrary key/value pairs plus the Cloudflare identity into a single **JSON string**, which you wire straight into the existing **Save Image** or **Save Video** node's `extra_metadata` input — those nodes already embed that JSON into the file (PNG `tEXt` / MP4 atoms). No separate "save with EXIF" node needed.
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** none
+
+| Input | Type | Notes |
+|---|---|---|
+| `extra_pairs` | STRING | JSON object of custom pairs (default `{"Delivered by": "Ranomaly"}`) |
+| `email` | STRING (optional) | Wire from **Cloudflare Access Identity** → added as `email` if non-empty |
+| `user` | STRING (optional) | Wire from **Cloudflare Access Identity** → added as `user` if non-empty |
+
+| Output | Type | Description |
+|---|---|---|
+| `metadata_json` | STRING | Merged JSON, e.g. `{"Delivered by": "Ranomaly", "email": "you@x.com", "user": "you"}` |
+
+```
+[Cloudflare Access Identity] ──email──►┐
+                             ──user───►│
+                                       [Build Metadata (Text)] ──metadata_json──► [Save Image / Save Video] (extra_metadata)
+```
 
 ---
 
