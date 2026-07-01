@@ -470,20 +470,23 @@ ComfyUI hands nodes only the `/prompt` body — not the HTTP request headers —
 |---|---|---|
 | `email` | STRING | `Cf-Access-Authenticated-User-Email` (empty when not behind Access) |
 | `authenticated` | BOOLEAN | True if the request carried an Access email or JWT |
-| `identity_json` | STRING | JSON of all `Cf-*` request headers (Access email, `Cf-Access-Jwt-Assertion`, `Cf-Ray`, `Cf-Ipcountry`, …) |
+| `identity_json` | STRING | Full credential bundle as JSON: `{email, claims, headers}` — `headers` are the `Cf-*` request headers CF adds; `claims` are the rich identity fields (`name`, `sub`/user-uuid, `groups`, `country`, custom claims) decoded from the `Cf-Access-Jwt-Assertion` JWT |
+
+Cloudflare identity comes in two buckets: **headers** CF injects (`Cf-Access-Authenticated-User-Email`, `Cf-Ipcountry`, `Cf-Connecting-Ip`, `Cf-Ray`, the `Cf-Access-Jwt-Assertion` token) and the **rich claims** (name, user UUID, groups, IdP) that live *inside* the JWT — the route base64-decodes the JWT payload to surface them in `claims`.
 
 > **Trust caveat:** the email header is plaintext and is only trustworthy because the origin is reachable *solely* through Cloudflare. Use it for attribution/metadata, **not** authorization — for real authz, verify the signed `Cf-Access-Jwt-Assertion` against your team's certs.
 
-**Local simulation (test before deploying):** when no real Cloudflare header is present, the route falls back to a simulated email from **`RANOMANY_CF_SIMULATED_EMAIL`** — set it as an env var or add a line to `.env` next to your API keys:
+**Local simulation (test before deploying):** when no real Cloudflare header/JWT is present, the route falls back to a simulated identity from env var or `.env` (next to your API keys). Two forms:
 
 ```bash
-# one-off launch
-RANOMANY_CF_SIMULATED_EMAIL=you@example.com <your comfyui start command>
-# …or in .env
+# 1) email only — shorthand
 RANOMANY_CF_SIMULATED_EMAIL=you@example.com
+
+# 2) full bundle — simulate the rest of the credentials too (one line)
+RANOMANY_CF_SIMULATED_IDENTITY={"email":"you@example.com","headers":{"Cf-Ipcountry":"IL"},"claims":{"name":"You","sub":"user-uuid","groups":["admin"]}}
 ```
 
-The node then reports that email with the panel showing **✓ authenticated (simulated)**, so your whole workflow / metadata chain behaves like production. The real Cloudflare header always takes precedence, so leaving the var unset in production changes nothing. (Alternatively, a browser header-injection extension like ModHeader can add a real `Cf-Access-Authenticated-User-Email` header to localhost requests — no code, exercises the exact header path.)
+The node then reports that identity with the panel showing **✓ authenticated (simulated)**, and `identity_json` carries the simulated `headers` + `claims` — so your whole workflow / metadata chain behaves like production. The real Cloudflare header/JWT always takes precedence, so leaving these unset in production changes nothing. (Alternatively, a browser header-injection extension like ModHeader can add a real `Cf-Access-Authenticated-User-Email` header to localhost requests — no code, exercises the exact header path.)
 
 ---
 

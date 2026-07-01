@@ -63,7 +63,10 @@ async function fetchIdentity(node) {
         node.__ranomanyCfSim = !!d.simulated;
         setWidget(node, "email", d.email || "");
         setWidget(node, "authenticated", !!d.authenticated);
-        setWidget(node, "identity_json", JSON.stringify(d.headers || {}, null, 2));
+        // Full credential bundle: CF request headers + rich JWT/identity claims.
+        setWidget(node, "identity_json", JSON.stringify(
+            { email: d.email || "", claims: d.claims || {}, headers: d.headers || {} },
+            null, 2));
         renderInfo(node);
         app.graph?.setDirtyCanvas(true, false);
     } catch (e) {
