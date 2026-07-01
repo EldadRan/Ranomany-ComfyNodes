@@ -31,8 +31,8 @@ class CloudflareIdentity:
             }
         }
 
-    RETURN_TYPES = ("STRING", "BOOLEAN", "STRING")
-    RETURN_NAMES = ("email", "authenticated", "identity_json")
+    RETURN_TYPES = ("STRING", "BOOLEAN", "STRING", "STRING")
+    RETURN_NAMES = ("email", "authenticated", "identity_json", "user")
     FUNCTION     = "identity"
     CATEGORY     = "Ranomany/Utils"
 
@@ -42,7 +42,9 @@ class CloudflareIdentity:
         return f"{email}:{authenticated}"
 
     def identity(self, email: str, authenticated: bool, identity_json: str):
-        return (email, bool(authenticated), identity_json)
+        # user = local part of the email (before "@"); whole string if there's no "@".
+        user = email.split("@", 1)[0] if email else ""
+        return (email, bool(authenticated), identity_json, user)
 
 
 NODE_CLASS_MAPPINGS = {

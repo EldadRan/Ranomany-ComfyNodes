@@ -471,6 +471,7 @@ ComfyUI hands nodes only the `/prompt` body — not the HTTP request headers —
 | `email` | STRING | `Cf-Access-Authenticated-User-Email` (empty when not behind Access) |
 | `authenticated` | BOOLEAN | True if the request carried an Access email or JWT |
 | `identity_json` | STRING | Full credential bundle as JSON: `{email, claims, headers}` — `headers` are the `Cf-*` request headers CF adds; `claims` are the rich identity fields (`name`, `sub`/user-uuid, `groups`, `country`, custom claims) decoded from the `Cf-Access-Jwt-Assertion` JWT |
+| `user` | STRING | Local part of the email (before `@`), e.g. `you@example.com` → `you` |
 
 Cloudflare identity comes in two buckets: **headers** CF injects (`Cf-Access-Authenticated-User-Email`, `Cf-Ipcountry`, `Cf-Connecting-Ip`, `Cf-Ray`, the `Cf-Access-Jwt-Assertion` token) and the **rich claims** (name, user UUID, groups, IdP) that live *inside* the JWT — the route base64-decodes the JWT payload to surface them in `claims`.
 
