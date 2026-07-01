@@ -3,12 +3,29 @@ import { api } from "../../scripts/api.js";
 
 // "Load Video (Info)" companion.
 //
-// Picker: the native video_upload widget (input-folder browser + upload button).
-// Preview: a <video controls> DOM widget that plays the picked/uploaded clip inline,
-// mirroring our Save Video preview. It refreshes when the user picks a file, when a
-// saved workflow is restored, and after a run (from the node's ui.gifs payload).
+// Picker: the native video_upload widget, which already renders an inline <video>
+// player in the EDITOR. A DOM widget renders in both editor and app mode, so a naive
+// custom <video> would double up with that native editor preview. As with our
+// "Load Image (Edit Mode)" node (see load_image_from_output.js), we therefore gate our
+// custom <video> to APP mode only via a CSS ancestor selector: the app panel wraps
+// widgets in [data-testid="app-mode-widget-item"] / "builder-widget-item". Pure CSS, so
+// it follows the element as the frontend re-parents it between modes — editor shows the
+// native preview, app mode shows ours.
 
 const CLASS = "RanomanyLoadVideoInfo";
+
+// Inject the app-mode gating CSS once.
+(function injectStyle() {
+    const id = "ranomany-video-preview-style";
+    if (document.getElementById(id)) return;
+    const s = document.createElement("style");
+    s.id = id;
+    s.textContent =
+        ".ranomany-video-preview{display:none;}" +
+        '[data-testid="app-mode-widget-item"] .ranomany-video-preview,' +
+        '[data-testid="builder-widget-item"] .ranomany-video-preview{display:flex;}';
+    document.head.appendChild(s);
+})();
 
 // Build a /view URL from a picker value like "sub/dir/clip.mp4 [input]".
 function viewURL(value) {
@@ -52,19 +69,18 @@ app.registerExtension({
     async nodeCreated(node) {
         if (node.comfyClass !== CLASS) return;
 
+        // <video> preview built as a DOM widget, gated to app mode via the CSS class.
         const el = document.createElement("video");
         el.controls = true;
         el.loop = false;
-        el.style.cssText = [
-            "width:100%",
-            "height:200px",
-            "object-fit:contain",
-            "background:#111",
-            "border-radius:4px",
-            "display:none",
-        ].join(";");
+        el.style.cssText =
+            "width:100%;max-height:220px;object-fit:contain;background:#111;border-radius:4px;display:none;";
+        const wrap = document.createElement("div");
+        wrap.className = "ranomany-video-preview";
+        wrap.style.cssText = "width:100%;align-items:center;justify-content:center;min-height:48px;";
+        wrap.appendChild(el);
         node.__ranomanyVideoEl = el;
-        node.addDOMWidget("videoPreview", "video", el, { serialize: false });
+        node.addDOMWidget("videoPreview", "video-preview", wrap, { serialize: false });
 
         // Refresh the preview when the user picks/uploads a different clip.
         const w = node.widgets?.find((w) => w.name === "video");
