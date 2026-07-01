@@ -21,11 +21,44 @@ const CLASS = "RanomanyLoadVideoInfo";
     const s = document.createElement("style");
     s.id = id;
     s.textContent =
-        ".ranomany-video-preview{display:none;}" +
+        ".ranomany-video-preview,.ranomany-video-info{display:none;}" +
         '[data-testid="app-mode-widget-item"] .ranomany-video-preview,' +
-        '[data-testid="builder-widget-item"] .ranomany-video-preview{display:flex;}';
+        '[data-testid="builder-widget-item"] .ranomany-video-preview{display:flex;}' +
+        '[data-testid="app-mode-widget-item"] .ranomany-video-info,' +
+        '[data-testid="builder-widget-item"] .ranomany-video-info{display:block;}' +
+        ".ranomany-video-info{width:100%;box-sizing:border-box;padding:8px 10px;" +
+        "background:#1a1a1a;border-radius:4px;font-size:12px;line-height:1.6;color:#ddd;}" +
+        ".ranomany-video-info .rv-row{display:flex;justify-content:space-between;gap:12px;}" +
+        ".ranomany-video-info .rv-k{color:#8a8a8a;}" +
+        ".ranomany-video-info .rv-v{color:#fff;font-variant-numeric:tabular-nums;}" +
+        ".ranomany-video-info .rv-empty{color:#8a8a8a;text-align:center;}";
     document.head.appendChild(s);
 })();
+
+// Populate the app-mode info panel from the node's ui.video_info payload.
+function renderInfo(node, data) {
+    const box = node.__ranomanyInfoBox;
+    if (!box) return;
+    if (!data) {
+        box.innerHTML = '<div class="rv-empty">Run to load video info</div>';
+        return;
+    }
+    const fmtDur = (s) => {
+        const total = Math.max(0, Math.round(s));
+        const m = Math.floor(total / 60);
+        const sec = total % 60;
+        return `${m}:${String(sec).padStart(2, "0")} (${(+s).toFixed(2)}s)`;
+    };
+    const rows = [
+        ["resolution", `${data.width} × ${data.height}`],
+        ["fps", `${data.fps}`],
+        ["frames", `${data.frame_count}`],
+        ["duration", fmtDur(data.duration_seconds)],
+    ];
+    box.innerHTML = rows
+        .map(([k, v]) => `<div class="rv-row"><span class="rv-k">${k}</span><span class="rv-v">${v}</span></div>`)
+        .join("");
+}
 
 // Build a /view URL from a picker value like "sub/dir/clip.mp4 [input]".
 function viewURL(value) {
@@ -82,6 +115,13 @@ app.registerExtension({
         node.__ranomanyVideoEl = el;
         node.addDOMWidget("videoPreview", "video-preview", wrap, { serialize: false });
 
+        // App-mode-only info panel (fps / frames / duration / resolution).
+        const infoBox = document.createElement("div");
+        infoBox.className = "ranomany-video-info";
+        node.__ranomanyInfoBox = infoBox;
+        node.addDOMWidget("videoInfo", "video-info", infoBox, { serialize: false });
+        renderInfo(node, node.__ranomanyInfo || null);
+
         // Refresh the preview when the user picks/uploads a different clip.
         const w = node.widgets?.find((w) => w.name === "video");
         if (w) {
@@ -104,6 +144,13 @@ app.registerExtension({
         const origOnExecuted = node.onExecuted;
         node.onExecuted = function (message) {
             origOnExecuted?.apply(this, arguments);
+
+            const info = message?.video_info?.[0];
+            if (info) {
+                node.__ranomanyInfo = info;
+                renderInfo(node, info);
+            }
+
             const clips = message?.gifs;
             if (!clips?.length) {
                 updatePreview(node);

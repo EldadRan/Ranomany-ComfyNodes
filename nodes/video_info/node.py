@@ -113,16 +113,20 @@ class LoadVideoInfo:
         mime = f"video/{ext}" if ext else "video/mp4"
 
         filename, subfolder, ftype = _split_annotated(video)
-        summary = (
-            f"{width}x{height} · {fps:.3f} fps · "
-            f"{frame_count} frames · {duration_seconds:.2f}s"
-        )
 
         return {
             "ui": {
                 "gifs": [{"filename": filename, "subfolder": subfolder,
                           "type": ftype, "format": mime}],
-                "text": [summary],
+                # Structured metadata for the app-mode info widget (web/video_info.js).
+                "video_info": [{
+                    "filename": filename,
+                    "fps": round(fps, 3),
+                    "frame_count": frame_count,
+                    "duration_seconds": round(duration_seconds, 3),
+                    "width": width,
+                    "height": height,
+                }],
             },
             "result": ({"filepath": path, "mime_type": mime}, fps, frame_count,
                        duration_seconds, width, height),

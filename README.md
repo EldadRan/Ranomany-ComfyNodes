@@ -406,6 +406,8 @@ This is Phase 1 of a PyAV-backed video toolset; later phases (frame extraction t
 | `width` | INT | Frame width in pixels |
 | `height` | INT | Frame height in pixels |
 
+In **app mode** the node shows an info panel (resolution / fps / frames / duration) that fills in after a run, since the editor-only native preview and dimension label aren't shown there.
+
 An unreadable/corrupt file logs a warning and returns zeros rather than failing the run.
 
 ```
