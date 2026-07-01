@@ -21,12 +21,12 @@ const CLASS = "RanomanyLoadVideoInfo";
     const s = document.createElement("style");
     s.id = id;
     s.textContent =
-        ".ranomany-video-preview,.ranomany-video-info{display:none;}" +
+        // The video preview stays app-mode only (the editor has a native one).
+        // The info panel has no native equivalent, so show it in both modes.
+        ".ranomany-video-preview{display:none;}" +
         '[data-testid="app-mode-widget-item"] .ranomany-video-preview,' +
         '[data-testid="builder-widget-item"] .ranomany-video-preview{display:flex;}' +
-        '[data-testid="app-mode-widget-item"] .ranomany-video-info,' +
-        '[data-testid="builder-widget-item"] .ranomany-video-info{display:block;}' +
-        ".ranomany-video-info{width:100%;box-sizing:border-box;padding:8px 10px;" +
+        ".ranomany-video-info{display:block;width:100%;box-sizing:border-box;padding:8px 10px;" +
         "background:#1a1a1a;border-radius:4px;font-size:12px;line-height:1.6;color:#ddd;}" +
         ".ranomany-video-info .rv-row{display:flex;justify-content:space-between;gap:12px;}" +
         ".ranomany-video-info .rv-k{color:#8a8a8a;}" +
