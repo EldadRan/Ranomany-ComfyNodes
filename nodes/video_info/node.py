@@ -15,12 +15,22 @@ toolset is built on (metadata now; frame extraction and trimming in later phases
 
 import os
 import logging
+from collections import deque
 
 import folder_paths
 
 log = logging.getLogger("VideoInfo")
 
 VIDEO = "VIDEO"
+
+# Frame-extraction modes (shared with web/video_info.js for the amount relabel).
+MODE_FROM_START   = "From start"
+MODE_FROM_LAST    = "From last"
+MODE_FIRST_EACH_S = "First frame of each second"
+MODE_ALL_OF_S     = "All frames of specific second"
+FRAME_MODES = [MODE_FROM_START, MODE_FROM_LAST, MODE_FIRST_EACH_S, MODE_ALL_OF_S]
+
+_MAX_FRAMES = 10000  # safety cap: warn + truncate to protect memory
 
 
 def _list_input_videos() -> list[str]:
@@ -73,6 +83,83 @@ def _probe(path: str) -> tuple[float, int, float, int, int]:
     except Exception as exc:
         log.warning(f"[VideoInfo] failed to probe {path!r}: {exc}")
         return 0.0, 0, 0.0, 0, 0
+
+
+def _extract_frames(path: str, mode: str, amount: int):
+    """Decode selected frames with PyAV. Returns (ndarray B×H×W×3 uint8, fps)."""
+    import numpy as np
+
+    fps, total, duration, width, height = _probe(path)
+    frames: list = []
+
+    try:
+        import av
+
+        with av.open(path) as container:
+            stream = container.streams.video[0]
+            stream.thread_type = "AUTO"
+
+            def rgb(frame):
+                return frame.to_ndarray(format="rgb24")  # H×W×3 uint8
+
+            if mode == MODE_FROM_START:
+                n = amount if amount > 0 else (total or _MAX_FRAMES)
+                for frame in container.decode(stream):
+                    if len(frames) >= n:
+                        break
+                    frames.append(rgb(frame))
+
+            elif mode == MODE_FROM_LAST:
+                n = amount if amount > 0 else (total or _MAX_FRAMES)
+                dq = deque(maxlen=n if n > 0 else None)
+                for frame in container.decode(stream):
+                    dq.append(rgb(frame))
+                frames = list(dq)
+
+            elif mode == MODE_FIRST_EACH_S:
+                targets = set()
+                s = 0
+                limit = total if total > 0 else round((duration or 0) * fps) + 1
+                while fps > 0:
+                    i = round(s * fps)
+                    if i >= limit:
+                        break
+                    targets.add(i)
+                    s += 1
+                    if s > _MAX_FRAMES:
+                        break
+                for idx, frame in enumerate(container.decode(stream)):
+                    if idx in targets:
+                        frames.append(rgb(frame))
+
+            elif mode == MODE_ALL_OF_S:
+                S = max(0, int(amount))
+                start_i = round(S * fps)
+                end_i = round((S + 1) * fps)
+                for idx, frame in enumerate(container.decode(stream)):
+                    if idx >= end_i:
+                        break
+                    if idx >= start_i:
+                        frames.append(rgb(frame))
+
+            else:
+                log.warning(f"[VideoInfo] unknown extract mode {mode!r}")
+
+        if len(frames) > _MAX_FRAMES:
+            log.warning(
+                f"[VideoInfo] extracted {len(frames)} frames, truncating to {_MAX_FRAMES}."
+            )
+            frames = frames[:_MAX_FRAMES]
+    except Exception as exc:
+        log.warning(f"[VideoInfo] failed to extract frames from {path!r}: {exc}")
+        frames = []
+
+    if not frames:
+        log.warning(f"[VideoInfo] no frames extracted (mode={mode!r}, amount={amount}).")
+        black = np.zeros((height or 64, width or 64, 3), dtype=np.uint8)
+        frames = [black]
+
+    return np.stack(frames), fps
 
 
 class LoadVideoInfo:
@@ -133,10 +220,42 @@ class LoadVideoInfo:
         }
 
 
+class ExtractVideoFrames:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video":  (VIDEO,),
+                "mode":   (FRAME_MODES, {"default": MODE_FROM_START}),
+                "amount": ("INT", {"default": 1, "min": 0, "max": 1_000_000,
+                                   "tooltip": "From start/last: how many frames. "
+                                              "Specific second: which second (0-based). "
+                                              "First frame of each second: ignored."}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "INT", "FLOAT")
+    RETURN_NAMES = ("images", "frame_count", "fps")
+    FUNCTION     = "extract"
+    CATEGORY     = "Ranomany/Utils"
+
+    def extract(self, video: dict, mode: str, amount: int):
+        import numpy as np
+        import torch
+
+        path = video["filepath"]
+        arr, fps = _extract_frames(path, mode, amount)
+        images = torch.from_numpy(arr.astype(np.float32) / 255.0)  # B×H×W×3
+        return (images, int(arr.shape[0]), float(fps))
+
+
 NODE_CLASS_MAPPINGS = {
-    "RanomanyLoadVideoInfo": LoadVideoInfo,
+    "RanomanyLoadVideoInfo":      LoadVideoInfo,
+    "RanomanyExtractVideoFrames": ExtractVideoFrames,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "RanomanyLoadVideoInfo": "Load Video (Info)",
+    "RanomanyLoadVideoInfo":      "Load Video (Info)",
+    "RanomanyExtractVideoFrames": "Extract Video Frames",
 }

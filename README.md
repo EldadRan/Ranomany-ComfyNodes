@@ -418,6 +418,40 @@ An unreadable/corrupt file logs a warning and returns zeros rather than failing 
 
 ---
 
+### `video_info` — Extract Video Frames
+
+Decodes frames from a loaded video into a ComfyUI `IMAGE` batch. Wire it after **Load Video (Info)** (it takes that node's `video` output). A single `mode` dropdown plus one `amount` number selects which frames — the meaning of `amount` changes with the mode (the input relabels itself in the UI):
+
+**Category:** `Ranomany/Utils`
+**Dependencies:** `av>=11.0` (PyAV, shared with the rest of the video toolset)
+
+| Input | Type | Notes |
+|---|---|---|
+| `video` | VIDEO | From **Load Video (Info)** |
+| `mode` | dropdown | See modes below |
+| `amount` | INT | Meaning depends on `mode` |
+
+| `mode` | `amount` means |
+|---|---|
+| `From start` | number of frames from the beginning (`0` = all) |
+| `From last` | number of frames from the end (`0` = all) |
+| `First frame of each second` | *(unused)* — one frame at each second boundary |
+| `All frames of specific second` | which second to extract (0-based) |
+
+| Output | Type | Description |
+|---|---|---|
+| `images` | IMAGE | Extracted frames as a `B×H×W×3` batch |
+| `frame_count` | INT | Number of frames actually extracted |
+| `fps` | FLOAT | Source frame rate (handy to reassemble frames → video later) |
+
+Batches are capped at 10,000 frames (warns + truncates) to protect memory. An empty selection (e.g. a second beyond the clip) returns a single black frame and a warning instead of failing.
+
+```
+[Load Video (Info)] ──video──► [Extract Video Frames] ──images──► [Save Image / Preview]
+```
+
+---
+
 ### `save_image_no_meta` — Save Image (no workflow metadata)
 
 ComfyUI's stock `SaveImage` embeds the entire workflow JSON in PNG `tEXt` chunks. This leaks your workflow to anyone who downloads the image and bloats file size. `SaveImageNoMeta` saves clean PNGs and embeds **only** the keys you explicitly pass via `extra_metadata`.

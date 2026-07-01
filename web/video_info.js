@@ -200,3 +200,45 @@ app.registerExtension({
         };
     },
 });
+
+// "Extract Video Frames" companion — relabel the single `amount` input per mode, so it
+// reads correctly (its meaning changes with the mode dropdown). Label-only, no backend.
+const EXTRACT_CLASS = "RanomanyExtractVideoFrames";
+const AMOUNT_LABELS = {
+    "From start": "frames from start",
+    "From last": "frames from end",
+    "First frame of each second": "(unused)",
+    "All frames of specific second": "second (0-based)",
+};
+
+function relabelAmount(node) {
+    const modeW = node.widgets?.find((w) => w.name === "mode");
+    const amountW = node.widgets?.find((w) => w.name === "amount");
+    if (!modeW || !amountW) return;
+    amountW.label = AMOUNT_LABELS[modeW.value] || "amount";
+    app.graph?.setDirtyCanvas(true, true);
+}
+
+app.registerExtension({
+    name: "Ranomany.ExtractVideoFrames",
+
+    async nodeCreated(node) {
+        if (node.comfyClass !== EXTRACT_CLASS) return;
+
+        const modeW = node.widgets?.find((w) => w.name === "mode");
+        if (modeW) {
+            const orig = modeW.callback;
+            modeW.callback = function () {
+                orig?.apply(this, arguments);
+                relabelAmount(node);
+            };
+        }
+
+        const origConfigure = node.onConfigure;
+        node.onConfigure = function () {
+            origConfigure?.apply(this, arguments);
+            relabelAmount(node);
+        };
+        requestAnimationFrame(() => relabelAmount(node));
+    },
+});
