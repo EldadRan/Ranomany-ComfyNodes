@@ -390,20 +390,26 @@ def _send_report() -> dict:
 
 # ── middleware ─────────────────────────────────────────────────────────────────────
 
+def _is_prompt_submit(request) -> bool:
+    # The frontend posts to /prompt or (with the /api base) /api/prompt — accept both.
+    return request.method == "POST" and request.path.rstrip("/").endswith("/prompt")
+
+
 @web.middleware
 async def usage_middleware(request, handler):
-    # Buffer the /prompt graph BEFORE the handler runs. aiohttp caches request.read(), so the
+    # Buffer the prompt graph BEFORE the handler runs. aiohttp caches request.read(), so the
     # handler's own request.json() still works — but reading it only *after* the handler can
     # fail once the payload is consumed/released, which would silently drop the count. Reading
     # first guarantees we have the graph regardless.
+    is_submit = _is_prompt_submit(request)
     prompt_graph = None
-    if request.method == "POST" and request.path == "/prompt":
+    if is_submit:
         try:
             body = await request.json()
             if isinstance(body, dict):
                 prompt_graph = body.get("prompt")
         except Exception as exc:  # noqa: BLE001
-            log.warning("[usage] could not read /prompt body: %s", exc)
+            log.warning("[usage] could not read prompt body at %s: %s", request.path, exc)
 
     resp = await handler(request)
 
@@ -411,11 +417,14 @@ async def usage_middleware(request, handler):
         email = _request_email(request)
         if email:
             _touch_presence(email)
-            if prompt_graph is not None and getattr(resp, "status", None) == 200:
-                counts = _count_kinds(prompt_graph)
+            if is_submit and getattr(resp, "status", None) == 200:
+                counts = _count_kinds(prompt_graph or {})
                 if counts:
                     _record_generations(email, counts)
-                    log.info("[usage] recorded for %s: %s", email, counts)
+                    log.info("[usage] recorded for %s at %s: %s", email, request.path, counts)
+                else:
+                    log.info("[usage] %s submitted %s but no countable nodes in graph",
+                             email, request.path)
     except Exception:  # noqa: BLE001 — tracking must never break the request pipeline
         log.exception("[usage] failed to record usage")
     return resp
