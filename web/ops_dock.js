@@ -74,6 +74,14 @@ const PANEL_STYLE = `
   #rnm-msg { min-height: 16px; margin-top: 8px; font-size: 11px; }
   #rnm-admin { display: none; margin-top: 8px; }
   #rnm-label-admin { font-size: 11px; color: #888; margin: 8px 0 4px; }
+  #rnm-usage-me { color: #9cf; font-size: 11px; margin-bottom: 6px; }
+  #rnm-usage-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  #rnm-usage-table th, #rnm-usage-table td {
+    border: 1px solid #333; padding: 3px 5px; text-align: left;
+  }
+  #rnm-usage-table th { color: #888; font-weight: normal; }
+  #rnm-usage-table td.num { text-align: right; }
+  #rnm-usage-wrap { display: none; max-height: 220px; overflow: auto; margin-top: 4px; }
 `;
 
 const PANEL_HTML = `
@@ -81,6 +89,10 @@ const PANEL_HTML = `
   <div id="rnm-ops">
     <h3>⚙ Ranomany Ops</h3>
     <div id="rnm-log">Loading log…</div>
+    <hr/>
+    <h3>◷ Usage</h3>
+    <div id="rnm-usage-me">Loading usage…</div>
+    <div id="rnm-usage-wrap"><table id="rnm-usage-table"></table></div>
     <hr/>
     <button id="rnm-restart">⟳ Restart ComfyUI</button>
     <hr/>
@@ -93,6 +105,7 @@ const PANEL_HTML = `
         <option value="">↩ Select rollback tag…</option>
       </select>
       <button id="rnm-rollback">↩ Rollback &amp; Restart</button>
+      <button id="rnm-report">✉ Send weekly report now</button>
     </div>
     <div id="rnm-msg"></div>
   </div>
@@ -113,7 +126,11 @@ function mountPanel(el) {
     const outEl     = $("rnm-out");
     const tagEl     = $("rnm-tag");
     const rollbackEl = $("rnm-rollback");
+    const reportEl  = $("rnm-report");
     const msgEl     = $("rnm-msg");
+    const usageMeEl = $("rnm-usage-me");
+    const usageWrapEl = $("rnm-usage-wrap");
+    const usageTableEl = $("rnm-usage-table");
 
     let locked = false;
 
@@ -124,8 +141,55 @@ function mountPanel(el) {
 
     function lock() {
         locked = true;
-        [restartEl, updateEl, rollbackEl].forEach(b => b.disabled = true);
+        [restartEl, updateEl, rollbackEl, reportEl].forEach(b => b.disabled = true);
         pwEl.disabled = true;
+    }
+
+    // "3 days ago" style relative time from an ISO8601 string
+    function ago(iso) {
+        if (!iso) return "—";
+        const then = Date.parse(iso);
+        if (isNaN(then)) return iso;
+        const s = Math.max(0, (Date.now() - then) / 1000);
+        if (s < 90) return "just now";
+        const units = [["day", 86400], ["hr", 3600], ["min", 60]];
+        for (const [name, secs] of units) {
+            const n = Math.floor(s / secs);
+            if (n >= 1) return `${n} ${name}${n > 1 ? "s" : ""} ago`;
+        }
+        return "just now";
+    }
+
+    // Load usage: own stats (always) + all-users table (only if allowlisted -> 200)
+    async function loadUsage() {
+        try {
+            const r = await api.fetchApi("/ranomany/usage");
+            const d = await r.json();
+            usageMeEl.textContent = d.email
+                ? `You (${d.email}): ${d.image} img · ${d.video} vid · ${d.utils} utils this month`
+                  + ` (${d.total} lifetime) · last seen ${ago(d.last_seen)}`
+                : "Not identified (no Cloudflare Access header).";
+        } catch {
+            usageMeEl.textContent = "(could not load usage)";
+        }
+        try {
+            const r = await api.fetchApi("/ranomany/usage/all");
+            if (!r.ok) { usageWrapEl.style.display = "none"; return; }
+            const d = await r.json();
+            const rows = d.users || [];
+            usageTableEl.innerHTML =
+                `<tr><th>User</th><th>Img</th><th>Vid</th><th>Util</th><th>Last seen</th></tr>` +
+                (rows.length
+                    ? rows.map(u => `<tr><td>${u.email}</td>` +
+                        `<td class="num">${u.image}</td>` +
+                        `<td class="num">${u.video}</td>` +
+                        `<td class="num">${u.utils}</td>` +
+                        `<td>${ago(u.last_seen)}</td></tr>`).join("")
+                    : `<tr><td colspan="5">(no activity yet)</td></tr>`);
+            usageWrapEl.style.display = "block";
+        } catch {
+            usageWrapEl.style.display = "none";
+        }
     }
 
     // Load last ops log entry
@@ -231,7 +295,32 @@ function mountPanel(el) {
         }
     });
 
+    // Send weekly report now (admin — reuses the password field)
+    reportEl.addEventListener("click", async () => {
+        if (locked) return;
+        if (!confirm("Send the weekly usage report now?")) return;
+        setMsg("Sending report…", "#aef");
+        reportEl.disabled = true;
+        try {
+            const r = await api.fetchApi("/ranomany/quota-report", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: pwEl.value }),
+            });
+            const data = await r.json();
+            if (!r.ok || !data.sent) {
+                setMsg(`Report failed: ${data.error || r.status}`, "#f44");
+            } else {
+                setMsg(`Report sent to ${(data.recipients || []).join(", ")}`, "#8f8");
+            }
+        } catch {
+            setMsg("Report request failed.", "#f80");
+        }
+        reportEl.disabled = false;
+    });
+
     loadLog();
+    loadUsage();
 }
 
 // ── Register sidebar tab ───────────────────────────────────────────────────────

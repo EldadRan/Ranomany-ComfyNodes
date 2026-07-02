@@ -69,6 +69,12 @@ try:
 except Exception:
     print(f"[Ranomany-ComfyNodes] cf-identity route failed:\n{traceback.format_exc()}")
 
+try:
+    _load("nodes/quota/server.py")
+    print("[Ranomany-ComfyNodes] usage/quota routes registered")
+except Exception:
+    print(f"[Ranomany-ComfyNodes] usage/quota routes failed:\n{traceback.format_exc()}")
+
 WEB_DIRECTORY = "./web"
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

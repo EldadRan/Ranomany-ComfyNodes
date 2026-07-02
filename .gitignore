@@ -12,3 +12,8 @@ venv/
 # Node / GUI build (source is vendored; shipped bundle lives in web/)
 node_modules/
 nodes/camera_angle/gui/js/
+
+# Runtime data (generated on the server, never committed)
+ranomany_usage.db*
+ranomany_ops.log
+ranomany_usage_categories.json

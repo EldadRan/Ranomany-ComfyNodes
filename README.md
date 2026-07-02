@@ -14,6 +14,7 @@ Ranomany-ComfyNodes/
 │   ├── load_image_from_output.js# App-mode <img> preview + refresh for Load Image (Edit Mode)
 │   ├── video_info.js            # Inline video player for Load Video (Info)
 │   ├── cf_identity.js           # Fetches Cloudflare Access identity into the node
+│   ├── ops_dock.js              # "Ranomany Ops" sidebar: restart/update + usage panel
 │   └── assets/main.css          # Styles for the camera-angle GUI
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
@@ -28,7 +29,9 @@ Ranomany-ComfyNodes/
     ├── load_latest_output/      # Load Image (Edit Mode) — native picker + newest-output
     ├── video_info/              # Load Video (Info) + Extract Video Frames (PyAV)
     ├── cf_identity/             # Cloudflare Access Identity — CF headers into the workflow
-    └── metadata_builder/        # Build Metadata (Text) — JSON for Save Image/Video extra_metadata
+    ├── metadata_builder/        # Build Metadata (Text) — JSON for Save Image/Video extra_metadata
+    ├── ops/                     # Server-only: restart/update/rollback routes (Ranomany Ops)
+    └── quota/                   # Server-only: usage tracking, presence & weekly email digest
 ```
 
 ---
@@ -821,6 +824,83 @@ again without re-picking.
 - Auto-snap uses the `GET /ranomany/latest-output` route (registered by
   `nodes/load_latest_output/server.py`) to find the newest output file by modification time —
   the browser can't read mtimes on its own.
+
+---
+
+## Usage tracking, presence & weekly digest
+
+Server-only (`nodes/quota/server.py`, registered automatically). Behind **Cloudflare Access**
+every request carries the caller's email (`Cf-Access-Authenticated-User-Email`), so an aiohttp
+middleware records usage **without any node in the graph** — it's **track only** and never
+blocks a generation.
+
+**What's recorded** (SQLite at `RANOMANY_QUOTA_DB`, default `<repo>/ranomany_usage.db`, gitignored):
+
+- **Generations per user per month, split by kind** (`image` / `video` / `utils`) — on each
+  successful `POST /prompt` the submitted graph is scanned and **every** node whose `class_type`
+  is in the mapping bumps its kind's counter (count-per-node). **Nodes not in the mapping are
+  never counted.** New month → new rows, so monthly counters and a lifetime total (`SUM`) both
+  fall out; no reset job. Counting happens at submit time, so a re-queued fully-cached graph
+  still counts, and it counts nodes requested, not output images/frames produced.
+
+  **The mapping is data, not code** — a JSON file (`ranomany_usage_categories.json` at the repo
+  root, override with `RANOMANY_USAGE_CATEGORIES`). It's **auto-created with sensible defaults on
+  first run**, git-ignored (so `git pull` never clobbers your edits), and **re-read whenever it
+  changes** — so as the pack grows you just add the new node's `class_type` under `image`,
+  `video`, or `utils` in that file; no code edit, no restart. Defaults:
+
+  ```json
+  {
+    "image": ["GeminiImage", "GeminiImageMultiRef", "OpenAIImage", "OpenAIImageMultiRef", "WanImage"],
+    "video": ["GeminiVeo", "WanVideo", "WanVideoEdit"],
+    "utils": ["RanomanyExtractVideoFrames"]
+  }
+  ```
+- **Last seen** — the timestamp of each user's most recent request behind Access (throttled to
+  one DB write per user per minute).
+
+**Viewing** — in the **Ranomany Ops** sidebar (`web/ops_dock.js`):
+
+- Everyone sees their **own** month/total/last-seen (`GET /ranomany/usage`).
+- The **all-users** table (`GET /ranomany/usage/all`) renders only for people whose email is in
+  the `RANOMANY_VIEWERS` allowlist; everyone else just sees their own line. Access is enforced
+  server-side by CF email, so the panel is effectively "open to a few people".
+
+**Weekly email digest** — `POST /ranomany/quota-report` builds a summary table (per user: image
+/ video / utils this month, month total, lifetime, last action, last seen) and emails it to
+`RANOMANY_REPORT_TO`. The route is gated
+by the existing `RANOMANY_ADMIN_PASSWORD`. Sending uses stdlib `smtplib` over
+**Resend's SMTP relay** (no new dependency; credentials are a Resend API key + verified sending
+domain — never a personal account). There's a **✉ Send weekly report now** button in the Ops
+admin block for testing; the real cadence is a host cron.
+
+Config (env or `.env`, next to the API keys — never committed):
+
+```bash
+# Resend SMTP relay
+RANOMANY_SMTP_HOST=smtp.resend.com
+RANOMANY_SMTP_PORT=587
+RANOMANY_SMTP_USER=resend
+RANOMANY_SMTP_PASS=re_xxxxxxxx            # Resend API key
+RANOMANY_SMTP_FROM=reports@ranomany.com   # a verified sending domain
+RANOMANY_REPORT_TO=you@x.com,boss@x.com   # weekly recipients (comma-separated)
+RANOMANY_VIEWERS=you@x.com,boss@x.com     # who may see the all-users panel
+# RANOMANY_QUOTA_DB=/var/lib/ranomany/usage.db   # optional DB path override
+# RANOMANY_USAGE_CATEGORIES=/etc/ranomany/categories.json   # optional mapping-file path override
+# RANOMANY_ADMIN_PASSWORD=…   (existing) gates POST /ranomany/quota-report
+# RANOMANY_CF_SIMULATED_EMAIL=…   (existing) lets you test locally without Cloudflare
+```
+
+Host cron / systemd timer for the weekly send (Monday 08:00):
+
+```cron
+0 8 * * 1 curl -fsS -X POST http://localhost:8188/ranomany/quota-report \
+  -H 'Content-Type: application/json' -d '{"password":"<RANOMANY_ADMIN_PASSWORD>"}'
+```
+
+> **Trust caveat:** same as `cf_identity` — the CF email is trustworthy only because the origin
+> is reachable *solely* through Cloudflare. This is for attribution/visibility, **not**
+> authorization.
 
 ---
 
