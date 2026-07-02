@@ -209,6 +209,7 @@ const AMOUNT_LABELS = {
     "From last": "frames from end",
     "First frame of each second": "(unused)",
     "All frames of specific second": "second (0-based)",
+    "Specific frame": "frame index (0-based)",
 };
 
 function relabelAmount(node) {

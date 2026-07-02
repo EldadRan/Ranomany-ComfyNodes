@@ -24,18 +24,21 @@ log = logging.getLogger("VideoInfo")
 VIDEO = "VIDEO"
 
 # Frame-extraction modes (shared with web/video_info.js for the amount relabel).
-MODE_FROM_START   = "From start"
-MODE_FROM_LAST    = "From last"
-MODE_FIRST_EACH_S = "First frame of each second"
-MODE_ALL_OF_S     = "All frames of specific second"
-FRAME_MODES = [MODE_FROM_START, MODE_FROM_LAST, MODE_FIRST_EACH_S, MODE_ALL_OF_S]
+MODE_FROM_START     = "From start"
+MODE_FROM_LAST      = "From last"
+MODE_FIRST_EACH_S   = "First frame of each second"
+MODE_ALL_OF_S       = "All frames of specific second"
+MODE_SPECIFIC_FRAME = "Specific frame"
+FRAME_MODES = [MODE_FROM_START, MODE_FROM_LAST, MODE_FIRST_EACH_S, MODE_ALL_OF_S,
+               MODE_SPECIFIC_FRAME]
 
-# Short action codes emitted as a text output (FS / FL / ES / SS).
+# Short action codes emitted as a text output (FS / FL / ES / SS / SF).
 MODE_ABBR = {
-    MODE_FROM_START:   "FS",
-    MODE_FROM_LAST:    "FL",
-    MODE_FIRST_EACH_S: "ES",
-    MODE_ALL_OF_S:     "SS",
+    MODE_FROM_START:     "FS",
+    MODE_FROM_LAST:      "FL",
+    MODE_FIRST_EACH_S:   "ES",
+    MODE_ALL_OF_S:       "SS",
+    MODE_SPECIFIC_FRAME: "SF",
 }
 
 _MAX_FRAMES = 10000  # safety cap: warn + truncate to protect memory
@@ -150,6 +153,13 @@ def _extract_frames(path: str, mode: str, amount: int):
                     if idx >= start_i:
                         frames.append(rgb(frame))
 
+            elif mode == MODE_SPECIFIC_FRAME:
+                target = max(0, int(amount))
+                for idx, frame in enumerate(container.decode(stream)):
+                    if idx == target:
+                        frames.append(rgb(frame))
+                        break
+
             else:
                 log.warning(f"[VideoInfo] unknown extract mode {mode!r}")
 
@@ -242,6 +252,7 @@ class ExtractVideoFrames:
                 "amount": ("INT", {"default": 1, "min": 0, "max": 1_000_000,
                                    "tooltip": "From start/last: how many frames. "
                                               "Specific second: which second (0-based). "
+                                              "Specific frame: which frame index (0-based). "
                                               "First frame of each second: ignored."}),
             }
         }
