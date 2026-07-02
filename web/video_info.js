@@ -243,3 +243,43 @@ app.registerExtension({
         requestAnimationFrame(() => relabelAmount(node));
     },
 });
+
+// "Trim Video Frames" companion — same amount relabel pattern as Extract. Trim drops N
+// frames from the start/end and keeps the rest; the label just clarifies the `amount` field.
+const TRIM_CLASS = "RanomanyTrimVideoFrames";
+const TRIM_LABELS = {
+    "Trim from start": "frames to remove from start",
+    "Trim from end": "frames to remove from end",
+};
+
+function relabelTrimAmount(node) {
+    const modeW = node.widgets?.find((w) => w.name === "mode");
+    const amountW = node.widgets?.find((w) => w.name === "amount");
+    if (!modeW || !amountW) return;
+    amountW.label = TRIM_LABELS[modeW.value] || "amount";
+    app.graph?.setDirtyCanvas(true, true);
+}
+
+app.registerExtension({
+    name: "Ranomany.TrimVideoFrames",
+
+    async nodeCreated(node) {
+        if (node.comfyClass !== TRIM_CLASS) return;
+
+        const modeW = node.widgets?.find((w) => w.name === "mode");
+        if (modeW) {
+            const orig = modeW.callback;
+            modeW.callback = function () {
+                orig?.apply(this, arguments);
+                relabelTrimAmount(node);
+            };
+        }
+
+        const origConfigure = node.onConfigure;
+        node.onConfigure = function () {
+            origConfigure?.apply(this, arguments);
+            relabelTrimAmount(node);
+        };
+        requestAnimationFrame(() => relabelTrimAmount(node));
+    },
+});

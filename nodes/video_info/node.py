@@ -41,6 +41,13 @@ MODE_ABBR = {
     MODE_SPECIFIC_FRAME: "SF",
 }
 
+# Frame-trim modes (shared with web/video_info.js for the amount relabel). Trim is the
+# inverse of extract: it drops N frames and keeps the rest.
+TRIM_FROM_START = "Trim from start"
+TRIM_FROM_END   = "Trim from end"
+TRIM_MODES      = [TRIM_FROM_START, TRIM_FROM_END]
+TRIM_ABBR       = {TRIM_FROM_START: "TS", TRIM_FROM_END: "TE"}
+
 _MAX_FRAMES = 10000  # safety cap: warn + truncate to protect memory
 
 
@@ -180,6 +187,59 @@ def _extract_frames(path: str, mode: str, amount: int):
     return np.stack(frames), fps
 
 
+def _trim_frames(path: str, mode: str, amount: int):
+    """Decode a clip and drop N frames from the start or end. Returns (ndarray B×H×W×3, fps)."""
+    import numpy as np
+
+    fps, total, duration, width, height = _probe(path)
+    n = max(0, int(amount))
+    frames: list = []
+
+    try:
+        import av
+
+        with av.open(path) as container:
+            stream = container.streams.video[0]
+            stream.thread_type = "AUTO"
+
+            def rgb(frame):
+                return frame.to_ndarray(format="rgb24")  # H×W×3 uint8
+
+            if mode == TRIM_FROM_START:
+                # Skip the first n frames as we decode — never materialise the dropped ones.
+                for idx, frame in enumerate(container.decode(stream)):
+                    if idx < n:
+                        continue
+                    frames.append(rgb(frame))
+
+            elif mode == TRIM_FROM_END:
+                # Need the total to know where the tail begins, so decode all then slice.
+                for frame in container.decode(stream):
+                    frames.append(rgb(frame))
+                # max(0, …) so trimming >= total yields empty (a bare negative slice
+                # index would wrongly keep frames from the front).
+                frames = frames[:max(0, len(frames) - n)] if n > 0 else frames
+
+            else:
+                log.warning(f"[VideoInfo] unknown trim mode {mode!r}")
+
+        if len(frames) > _MAX_FRAMES:
+            log.warning(
+                f"[VideoInfo] trimmed to {len(frames)} frames, truncating to {_MAX_FRAMES}."
+            )
+            frames = frames[:_MAX_FRAMES]
+    except Exception as exc:
+        log.warning(f"[VideoInfo] failed to trim frames from {path!r}: {exc}")
+        frames = []
+
+    if not frames:
+        log.warning(f"[VideoInfo] no frames left after trim (mode={mode!r}, amount={amount}).")
+        black = np.zeros((height or 64, width or 64, 3), dtype=np.uint8)
+        frames = [black]
+
+    return np.stack(frames), fps
+
+
 class LoadVideoInfo:
 
     @classmethod
@@ -272,12 +332,43 @@ class ExtractVideoFrames:
         return (images, int(arr.shape[0]), float(fps), MODE_ABBR.get(mode, ""))
 
 
+class TrimVideoFrames:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video":  (VIDEO,),
+                "mode":   (TRIM_MODES, {"default": TRIM_FROM_START}),
+                "amount": ("INT", {"default": 1, "min": 0, "max": 12,
+                                   "tooltip": "How many frames to remove from the start / end "
+                                              "(0-12). 0 keeps all frames."}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "STRING")
+    RETURN_NAMES = ("images", "frame_count", "fps", "action")
+    FUNCTION     = "trim"
+    CATEGORY     = "Ranomany/Utils"
+
+    def trim(self, video: dict, mode: str, amount: int):
+        import numpy as np
+        import torch
+
+        path = video["filepath"]
+        arr, fps = _trim_frames(path, mode, amount)
+        images = torch.from_numpy(arr.astype(np.float32) / 255.0)  # B×H×W×3
+        return (images, int(arr.shape[0]), float(fps), TRIM_ABBR.get(mode, ""))
+
+
 NODE_CLASS_MAPPINGS = {
     "RanomanyLoadVideoInfo":      LoadVideoInfo,
     "RanomanyExtractVideoFrames": ExtractVideoFrames,
+    "RanomanyTrimVideoFrames":    TrimVideoFrames,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RanomanyLoadVideoInfo":      "Load Video (Info)",
     "RanomanyExtractVideoFrames": "Extract Video Frames",
+    "RanomanyTrimVideoFrames":    "Trim Video Frames",
 }
