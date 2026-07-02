@@ -78,3 +78,51 @@ wan_video:
     Supports Beijing and Singapore (workspace_id) regional endpoints.
   deps:    []
   version: "0.1.0"
+
+camera_angle:
+  description: |
+    Ships Camera Angle (3D camera-angle control via a Vue + Three.js GUI) and
+    Camera Angle (Load Image). Emits camera-direction text plus the composed image.
+  deps:    []
+  version: "0.1.0"
+
+load_latest_output:
+  description: |
+    Load Image (Edit Mode) — a LoadImage-style picker that can auto-snap to the
+    newest file in the output directory (via GET /ranomany/latest-output).
+  deps:    []
+  version: "0.1.0"
+
+video_info:
+  description: |
+    Ships Load Video (Info) — plays a video and outputs fps / frame_count /
+    duration / dimensions / filename / extension — and Extract Video Frames
+    (class_type RanomanyExtractVideoFrames): from-start / from-last / first-of-each-second /
+    all-of-second extraction. Uses PyAV.
+  deps:    [av>=11.0]
+  version: "0.1.0"
+
+cf_identity:
+  description: |
+    Cloudflare Access Identity — surfaces the authenticated user's Cf-Access-* identity
+    (email / claims / headers) into the workflow via GET /ranomany/cf-identity, for
+    attribution/metadata (not authorization).
+  deps:    []
+  version: "0.1.0"
+
+metadata_builder:
+  description: |
+    Build Metadata (Text) — compiles arbitrary key/value pairs plus the Cloudflare
+    identity into a JSON string for the Save Image / Save Video `extra_metadata` input.
+  deps:    []
+  version: "0.1.0"
+
+# Server-only (no graph node): usage tracking, "last seen" presence, and the weekly
+# email digest (Ranomany Ops sidebar). Routes under /ranomany/usage* and /ranomany/quota-report.
+quota:
+  description: |
+    Tracks per-user, per-month generation counts (image/video/utils, via a data-driven
+    ranomany_usage_categories.json mapping) and last-seen presence behind Cloudflare Access;
+    emails a weekly digest via SMTP. No graph node — aiohttp middleware + routes only.
+  deps:    []
+  version: "0.1.0"

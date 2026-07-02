@@ -27,6 +27,7 @@ context), so it cannot relative-import sibling helpers.
 
 import hmac
 import json
+import logging
 import os
 import smtplib
 import sqlite3
@@ -40,6 +41,8 @@ from aiohttp import web
 from server import PromptServer
 
 _REPO = Path(__file__).resolve().parent.parent.parent  # Ranomany-ComfyNodes root
+
+log = logging.getLogger("RanomanyUsage")
 
 _PRESENCE_THROTTLE_S = 60          # min seconds between presence DB writes per email
 _presence_cache: dict[str, float] = {}
@@ -389,18 +392,32 @@ def _send_report() -> dict:
 
 @web.middleware
 async def usage_middleware(request, handler):
+    # Buffer the /prompt graph BEFORE the handler runs. aiohttp caches request.read(), so the
+    # handler's own request.json() still works — but reading it only *after* the handler can
+    # fail once the payload is consumed/released, which would silently drop the count. Reading
+    # first guarantees we have the graph regardless.
+    prompt_graph = None
+    if request.method == "POST" and request.path == "/prompt":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                prompt_graph = body.get("prompt")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[usage] could not read /prompt body: %s", exc)
+
     resp = await handler(request)
+
     try:
         email = _request_email(request)
         if email:
             _touch_presence(email)
-            if resp.status == 200 and request.method == "POST" and request.path == "/prompt":
-                # The /prompt body is already cached by the handler's own read, so re-reading
-                # it here is safe and doesn't disturb the request pipeline.
-                body = await request.json()
-                _record_generations(email, _count_kinds(body.get("prompt") or {}))
+            if prompt_graph is not None and getattr(resp, "status", None) == 200:
+                counts = _count_kinds(prompt_graph)
+                if counts:
+                    _record_generations(email, counts)
+                    log.info("[usage] recorded for %s: %s", email, counts)
     except Exception:  # noqa: BLE001 — tracking must never break the request pipeline
-        pass
+        log.exception("[usage] failed to record usage")
     return resp
 
 
