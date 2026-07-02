@@ -67,7 +67,7 @@ class CameraAngle:
     RETURN_TYPES  = ("STRING", "STRING", "STRING", "STRING")
     RETURN_NAMES  = ("prompt", "horizontal", "vertical", "shot_size")
     FUNCTION      = "generate"
-    CATEGORY      = "Ranomany/Utils"
+    CATEGORY      = "Ranomany/Media Tools"
     OUTPUT_NODE   = True
 
     def generate(self, horizontal_angle, vertical_angle, zoom, image=None):
@@ -167,7 +167,7 @@ class CameraAngleEdit(CameraAngle):
     RETURN_TYPES  = ("STRING", "STRING", "STRING", "STRING", "IMAGE", "MASK")
     RETURN_NAMES  = ("prompt", "horizontal", "vertical", "shot_size", "image", "mask")
     FUNCTION      = "generate"
-    CATEGORY      = "Ranomany/Utils"
+    CATEGORY      = "Ranomany/Media Tools"
     OUTPUT_NODE   = False
 
     @classmethod

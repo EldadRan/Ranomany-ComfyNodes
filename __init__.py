@@ -30,6 +30,7 @@ _NODE_FILES = [
     ("nodes/video_info/node.py",         "video_info"),
     ("nodes/cf_identity/node.py",        "cf_identity"),
     ("nodes/metadata_builder/node.py",   "metadata_builder"),
+    ("nodes/multi_concat/node.py",       "multi_concat"),
 ]
 
 for _rel, _label in _NODE_FILES:

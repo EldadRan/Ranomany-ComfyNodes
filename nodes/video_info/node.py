@@ -461,7 +461,7 @@ class ExtractVideoFrames:
     RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "STRING")
     RETURN_NAMES = ("images", "frame_count", "fps", "action")
     FUNCTION     = "extract"
-    CATEGORY     = "Ranomany/Utils"
+    CATEGORY     = "Ranomany/Media Tools"
 
     def extract(self, video: dict, mode: str, amount: int):
         import numpy as np
@@ -490,7 +490,7 @@ class TrimVideoFrames:
     RETURN_TYPES = (VIDEO, "INT", "STRING")
     RETURN_NAMES = ("video", "frame_count", "action")
     FUNCTION     = "trim"
-    CATEGORY     = "Ranomany/Utils"
+    CATEGORY     = "Ranomany/Media Tools"
 
     def trim(self, video: dict, mode: str, amount: int):
         path = video["filepath"]
@@ -517,7 +517,7 @@ class ConvertVideoFPS:
     RETURN_TYPES = (VIDEO, "INT")
     RETURN_NAMES = ("video", "fps")
     FUNCTION     = "convert"
-    CATEGORY     = "Ranomany/Utils"
+    CATEGORY     = "Ranomany/Media Tools"
 
     def convert(self, video: dict, method: str, target_fps: int):
         out_path, fps = _convert_fps(video["filepath"], method, target_fps)

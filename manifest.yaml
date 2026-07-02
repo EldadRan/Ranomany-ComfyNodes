@@ -120,6 +120,14 @@ metadata_builder:
   deps:    []
   version: "0.1.0"
 
+multi_concat:
+  description: |
+    Multi Concat (class_type RanomanyMultiConcat) — concatenates up to 10 values
+    (number or string) into a single STRING. First two inputs required, 3-10 optional;
+    each can be typed in the GUI or wired in. Optional separator; empty inputs skipped.
+  deps:    []
+  version: "0.1.0"
+
 # Server-only (no graph node): usage tracking, "last seen" presence, and the weekly
 # email digest (Ranomany Ops sidebar). Routes under /ranomany/usage* and /ranomany/quota-report.
 quota:
