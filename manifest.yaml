@@ -98,8 +98,10 @@ video_info:
     Ships Load Video (Info) — plays a video and outputs fps / frame_count /
     duration / dimensions / filename / extension — Extract Video Frames
     (class_type RanomanyExtractVideoFrames): from-start / from-last / first-of-each-second /
-    all-of-second / specific-frame extraction — and Trim Video Frames
-    (class_type RanomanyTrimVideoFrames): drop N frames from the start or end. Uses PyAV.
+    all-of-second / specific-frame extraction — Trim Video Frames
+    (class_type RanomanyTrimVideoFrames): drop N frames from the start or end — and Convert
+    Video FPS (class_type RanomanyConvertVideoFPS): retime / duplicate / blend /
+    motion-interpolate / dedup-resample a clip to a target fps. Uses PyAV.
   deps:    [av>=11.0]
   version: "0.1.0"
 

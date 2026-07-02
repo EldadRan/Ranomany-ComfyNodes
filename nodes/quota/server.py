@@ -58,7 +58,8 @@ KINDS = ("image", "video", "utils")
 _DEFAULT_CATEGORIES = {
     "image": ["GeminiImage", "GeminiImageMultiRef", "OpenAIImage", "OpenAIImageMultiRef", "WanImage"],
     "video": ["GeminiVeo", "WanVideo", "WanVideoEdit"],
-    "utils": ["RanomanyExtractVideoFrames", "RanomanyTrimVideoFrames"],
+    "utils": ["RanomanyExtractVideoFrames", "RanomanyTrimVideoFrames",
+              "RanomanyConvertVideoFPS"],
 }
 _kind_index_cache = {"mtime": None, "index": {}}
 

@@ -48,6 +48,27 @@ TRIM_FROM_END   = "Trim from end"
 TRIM_MODES      = [TRIM_FROM_START, TRIM_FROM_END]
 TRIM_ABBR       = {TRIM_FROM_START: "TS", TRIM_FROM_END: "TE"}
 
+# FPS-conversion methods. Each maps to a libavfilter chain applied via av.filter.Graph —
+# the same recipes you'd write on the ffmpeg CLI, but run through PyAV (no ffmpeg binary).
+FPS_RETIME       = "Re-time (change speed)"
+FPS_DUPLICATE    = "Duplicate frames"
+FPS_BLEND        = "Blend (framerate)"
+FPS_MINTERP      = "Motion interpolation"
+FPS_MINTERP_BEST = "Motion interpolation (best)"
+FPS_DEDUP        = "Dedup + resample"
+FPS_METHODS = [FPS_DUPLICATE, FPS_BLEND, FPS_MINTERP, FPS_MINTERP_BEST, FPS_DEDUP, FPS_RETIME]
+
+# method -> list of (filter_name, args_template). [] = identity (re-time: keep the same frames,
+# just re-timestamp at the new rate → changes speed). "{dst}" is the target fps.
+_FPS_CHAINS = {
+    FPS_RETIME:       [],
+    FPS_DUPLICATE:    [("fps", "{dst}")],
+    FPS_BLEND:        [("framerate", "fps={dst}")],
+    FPS_MINTERP:      [("minterpolate", "fps={dst}")],
+    FPS_MINTERP_BEST: [("minterpolate", "fps={dst}:mi_mode=mci:mc_mode=aobmc:vsbmc=1")],
+    FPS_DEDUP:        [("mpdecimate", ""), ("fps", "{dst}")],
+}
+
 _MAX_FRAMES = 10000  # safety cap: warn + truncate to protect memory
 
 
@@ -274,6 +295,92 @@ def _trim_video(path: str, mode: str, amount: int) -> tuple[str, int]:
     return tmp.name, int(arr.shape[0])
 
 
+def _convert_fps(path: str, method: str, target_fps: int) -> tuple[str, int]:
+    """Convert a clip's frame rate to target_fps and re-encode to a temp mp4 (H.264).
+
+    Decodes with PyAV, pushes frames through a libavfilter graph (the chain for `method`),
+    then re-encodes the filtered frames at `target_fps`. Re-time uses an empty chain: the
+    same frames are muxed at the new rate, changing playback speed. Returns (path, fps).
+    """
+    import tempfile
+    from fractions import Fraction
+
+    import av
+
+    dst = max(1, int(target_fps))
+    chain = _FPS_CHAINS.get(method)
+    if chain is None:
+        raise ValueError(f"unknown fps method {method!r}")
+    rate = Fraction(dst, 1)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    tmp.close()
+
+    written = 0
+    with av.open(path) as container, av.open(tmp.name, mode="w") as out:
+        istream = container.streams.video[0]
+        istream.thread_type = "AUTO"
+
+        ostream = out.add_stream("libx264", rate=rate)
+        ostream.pix_fmt = "yuv420p"
+
+        # Build the filter graph only when the method actually filters (re-time is identity).
+        graph = None
+        sink = None
+        if chain:
+            graph = av.filter.Graph()
+            prev = graph.add_buffer(template=istream)
+            for name, args_tpl in chain:
+                args = args_tpl.format(dst=dst)
+                try:
+                    node = graph.add(name, args) if args else graph.add(name)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"filter {name!r} unavailable in this PyAV/libav build ({exc})"
+                    ) from exc
+                prev.link_to(node)
+                prev = node
+            sink = graph.add("buffersink")
+            prev.link_to(sink)
+            graph.configure()
+
+        def emit(frame):
+            nonlocal written
+            if ostream.width == 0:
+                ostream.width = frame.width
+                ostream.height = frame.height
+            # Let the encoder pick frame types / timestamps for the new rate.
+            frame.pts = None
+            frame.time_base = None
+            for packet in ostream.encode(frame):
+                out.mux(packet)
+            written += 1
+
+        def drain():
+            while True:
+                try:
+                    emit(graph.pull())
+                except (av.error.BlockingIOError, av.error.EOFError):
+                    break
+
+        for frame in container.decode(istream):
+            if graph is not None:
+                graph.push(frame)
+                drain()
+            else:
+                emit(frame)
+
+        if graph is not None:
+            graph.push(None)  # signal end-of-stream so filters (e.g. minterpolate) flush
+            drain()
+
+        for packet in ostream.encode():  # flush the encoder
+            out.mux(packet)
+
+    log.info(f"[VideoInfo] converted fps ({method}, → {dst} fps, {written} frames) → {tmp.name}")
+    return tmp.name, dst
+
+
 class LoadVideoInfo:
 
     @classmethod
@@ -392,14 +499,41 @@ class TrimVideoFrames:
                 TRIM_ABBR.get(mode, ""))
 
 
+class ConvertVideoFPS:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video":      (VIDEO,),
+                "method":     (FPS_METHODS, {"default": FPS_DUPLICATE}),
+                "target_fps": ("INT", {"default": 30, "min": 1, "max": 240,
+                                       "tooltip": "Output frames per second. Duration-preserving "
+                                                  "methods add/drop frames to hit this; "
+                                                  "Re-time changes playback speed instead."}),
+            }
+        }
+
+    RETURN_TYPES = (VIDEO, "INT")
+    RETURN_NAMES = ("video", "fps")
+    FUNCTION     = "convert"
+    CATEGORY     = "Ranomany/Utils"
+
+    def convert(self, video: dict, method: str, target_fps: int):
+        out_path, fps = _convert_fps(video["filepath"], method, target_fps)
+        return ({"filepath": out_path, "mime_type": "video/mp4"}, fps)
+
+
 NODE_CLASS_MAPPINGS = {
     "RanomanyLoadVideoInfo":      LoadVideoInfo,
     "RanomanyExtractVideoFrames": ExtractVideoFrames,
     "RanomanyTrimVideoFrames":    TrimVideoFrames,
+    "RanomanyConvertVideoFPS":    ConvertVideoFPS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RanomanyLoadVideoInfo":      "Load Video (Info)",
     "RanomanyExtractVideoFrames": "Extract Video Frames",
     "RanomanyTrimVideoFrames":    "Trim Video Frames",
+    "RanomanyConvertVideoFPS":    "Convert Video FPS",
 }
