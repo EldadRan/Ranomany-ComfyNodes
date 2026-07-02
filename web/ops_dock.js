@@ -106,7 +106,7 @@ const PANEL_STYLE = `
 const PANEL_HTML = `
   <style>${PANEL_STYLE}</style>
   <div id="rnm-ops">
-    <h3>⚙ Ranomany Ops</h3>
+    <h3>⚙ Ranomaly Ops</h3>
     <div id="rnm-log">Loading log…</div>
     <hr/>
     <h3>◷ Usage</h3>
@@ -352,7 +352,7 @@ app.registerExtension({
             id: "ranomany.ops",
             icon: "pi rnm-ops-icon",
             title: "Ranomaly",
-            tooltip: "Ranomany Ops — restart, update, rollback",
+            tooltip: "Ranomaly Ops — restart, update, rollback",
             type: "custom",
             render: mountPanel,
         });
