@@ -1,6 +1,25 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
+// Custom sidebar-tab icon: our reticle mark (web/ops_icon.svg). ComfyUI renders the tab
+// icon as an element with the given class, and icon fonts draw via ::before — so we point
+// ::before at the SVG via a CSS mask, filled with currentColor so it recolors with the
+// theme and highlights on the active tab, matching the built-in PrimeIcons. The URL is
+// resolved from this module's location so it works wherever the extension is mounted.
+(function injectOpsIcon() {
+    const id = "ranomany-ops-icon-style";
+    if (document.getElementById(id)) return;
+    const iconURL = new URL("./ops_icon.svg", import.meta.url).href;
+    const s = document.createElement("style");
+    s.id = id;
+    s.textContent =
+        ".rnm-ops-icon::before{content:'';display:inline-block;width:1em;height:1em;" +
+        "vertical-align:-0.125em;background:currentColor;" +
+        `-webkit-mask:url('${iconURL}') center/contain no-repeat;` +
+        `mask:url('${iconURL}') center/contain no-repeat;}`;
+    document.head.appendChild(s);
+})();
+
 // ── Panel HTML ─────────────────────────────────────────────────────────────────
 
 const PANEL_STYLE = `
@@ -331,8 +350,8 @@ app.registerExtension({
     async setup() {
         app.extensionManager.registerSidebarTab({
             id: "ranomany.ops",
-            icon: "pi pi-cog",
-            title: "Ranomany Ops",
+            icon: "pi rnm-ops-icon",
+            title: "Ranomaly",
             tooltip: "Ranomany Ops — restart, update, rollback",
             type: "custom",
             render: mountPanel,

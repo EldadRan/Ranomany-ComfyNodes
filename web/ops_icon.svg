@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Broken ring: four cardinal arcs with diagonal gaps, centered on 12,12. -->
+  <g fill="none" stroke="#000" stroke-width="2.6" stroke-linecap="round">
+    <path d="M8 5.07 A8 8 0 0 1 16 5.07"/>
+    <path d="M18.93 8 A8 8 0 0 1 18.93 16"/>
+    <path d="M16 18.93 A8 8 0 0 1 8 18.93"/>
+    <path d="M5.07 16 A8 8 0 0 1 5.07 8"/>
+  </g>
+  <circle cx="12" cy="12" r="2.4" fill="#000"/>
+</svg>
