@@ -313,6 +313,10 @@ def _convert_fps(path: str, method: str, target_fps: int) -> tuple[str, int]:
         raise ValueError(f"unknown fps method {method!r}")
     rate = Fraction(dst, 1)
 
+    # Preserve the source resolution / aspect ratio — a fresh libx264 stream otherwise
+    # defaults to 640x480. Filters (fps/framerate/minterpolate/mpdecimate) don't resize.
+    _fps, _total, _dur, width, height = _probe(path)
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     tmp.close()
 
@@ -323,6 +327,9 @@ def _convert_fps(path: str, method: str, target_fps: int) -> tuple[str, int]:
 
         ostream = out.add_stream("libx264", rate=rate)
         ostream.pix_fmt = "yuv420p"
+        if width and height:
+            ostream.width = width
+            ostream.height = height
 
         # Build the filter graph only when the method actually filters (re-time is identity).
         graph = None
@@ -346,7 +353,7 @@ def _convert_fps(path: str, method: str, target_fps: int) -> tuple[str, int]:
 
         def emit(frame):
             nonlocal written
-            if ostream.width == 0:
+            if not ostream.width or not ostream.height:
                 ostream.width = frame.width
                 ostream.height = frame.height
             # Clear pts so the encoder assigns sequential timestamps at the output rate
