@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import sys
 import traceback
 
 _here = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +18,15 @@ def _load(rel_path: str):
     return mod
 
 
+# Shared provider clients — loaded once and registered under a stable import name so the
+# isolated node modules (execd via _load) can `import` them. Must run before the node loop.
+try:
+    sys.modules["ranomany_fal_common"] = _load("nodes/fal_common/client.py")
+    print("[Ranomany-ComfyNodes] OK  fal_common (shared fal.ai client)")
+except Exception:
+    print(f"[Ranomany-ComfyNodes] ERR fal_common:\n{traceback.format_exc()}")
+
+
 _NODE_FILES = [
     ("nodes/api_key/node.py",            "api_key"),
     ("nodes/gemini_image/node.py",       "gemini_image"),
@@ -31,6 +41,7 @@ _NODE_FILES = [
     ("nodes/cf_identity/node.py",        "cf_identity"),
     ("nodes/metadata_builder/node.py",   "metadata_builder"),
     ("nodes/multi_concat/node.py",       "multi_concat"),
+    ("nodes/wan_fal/node.py",            "wan_fal"),
 ]
 
 for _rel, _label in _NODE_FILES:

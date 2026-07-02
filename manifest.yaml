@@ -79,6 +79,24 @@ wan_video:
   deps:    []
   version: "0.1.0"
 
+wan_fal:
+  description: |
+    Wan 2.7 on fal.ai — three nodes over the fal queue REST API (raw HTTP, no extra deps).
+    All share the fal_common client (nodes/fal_common/client.py: auth, submit/poll, media
+    data-URIs, download) so future fal.ai models reuse the transport.
+
+      WanFalImageToVideo      → fal-ai/wan/v2.7/image-to-video
+        first frame + optional end frame + optional video-continuation (no audio)
+      WanFalEditVideo         → fal-ai/wan/v2.7/edit-video
+        instruction edit of a source VIDEO + optional reference IMAGE
+      WanFalReferenceToVideo  → fal-ai/wan/v2.7/reference-to-video
+        up to 4 reference images + up to 2 reference videos (multi-subject)
+
+    Each outputs (VIDEO, seed, key_status) — wire VIDEO to the Save Video node.
+    Category: Ranomany/fal.ai. Requires FAL_KEY env var (or pass it via the api_key input).
+  deps:    []
+  version: "0.1.0"
+
 camera_angle:
   description: |
     Ships Camera Angle (3D camera-angle control via a Vue + Three.js GUI) and

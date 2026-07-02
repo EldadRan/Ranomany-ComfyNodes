@@ -57,7 +57,8 @@ _db_lock = threading.Lock()
 KINDS = ("image", "video", "utils")
 _DEFAULT_CATEGORIES = {
     "image": ["GeminiImage", "GeminiImageMultiRef", "OpenAIImage", "OpenAIImageMultiRef", "WanImage"],
-    "video": ["GeminiVeo", "WanVideo", "WanVideoEdit"],
+    "video": ["GeminiVeo", "WanVideo", "WanVideoEdit",
+              "WanFalImageToVideo", "WanFalEditVideo", "WanFalReferenceToVideo"],
     "utils": ["RanomanyExtractVideoFrames", "RanomanyTrimVideoFrames",
               "RanomanyConvertVideoFPS"],
 }
