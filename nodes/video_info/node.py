@@ -367,14 +367,18 @@ def _convert_fps(path: str, method: str, target_fps: int) -> tuple[str, int]:
             prev.link_to(sink)
             graph.configure()
 
+        out_tb = Fraction(1, dst)
+
         def emit(frame):
             nonlocal written
             if not ostream.width or not ostream.height:
                 ostream.width = frame.width
                 ostream.height = frame.height
-            # Clear pts so the encoder assigns sequential timestamps at the output rate
-            # (CFR). time_base must stay a real rational — PyAV rejects None there.
-            frame.pts = None
+            # Explicitly stamp each frame as index/dst so the output is clean CFR at the
+            # target fps. Relying on pts=None auto-assignment breaks Re-time (no filter):
+            # its frames keep the source time_base and the encoder derives a bogus rate.
+            frame.pts = written
+            frame.time_base = out_tb
             for packet in ostream.encode(frame):
                 out.mux(packet)
             written += 1
