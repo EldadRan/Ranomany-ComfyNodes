@@ -69,6 +69,22 @@ _FPS_CHAINS = {
     FPS_DEDUP:        [("mpdecimate", ""), ("fps", "{dst}")],
 }
 
+
+def _available_fps_methods() -> list[str]:
+    """Only offer methods whose libavfilter filters exist in the installed PyAV build.
+
+    PyAV wheels vary in which filters they bundle (some omit mpdecimate / minterpolate),
+    so we hide methods that would crash rather than let the user pick a dead option.
+    """
+    try:
+        import av
+
+        have = set(av.filter.filters_available)
+    except Exception:
+        return list(FPS_METHODS)  # can't probe — offer everything, fail loudly at run time
+    return [m for m in FPS_METHODS if all(name in have for name, _ in _FPS_CHAINS[m])] \
+        or [FPS_RETIME]
+
 _MAX_FRAMES = 10000  # safety cap: warn + truncate to protect memory
 
 
@@ -510,10 +526,12 @@ class ConvertVideoFPS:
 
     @classmethod
     def INPUT_TYPES(cls):
+        methods = _available_fps_methods()
+        default = FPS_DUPLICATE if FPS_DUPLICATE in methods else methods[0]
         return {
             "required": {
                 "video":      (VIDEO,),
-                "method":     (FPS_METHODS, {"default": FPS_DUPLICATE}),
+                "method":     (methods, {"default": default}),
                 "target_fps": ("INT", {"default": 30, "min": 1, "max": 240,
                                        "tooltip": "Output frames per second. Duration-preserving "
                                                   "methods add/drop frames to hit this; "
