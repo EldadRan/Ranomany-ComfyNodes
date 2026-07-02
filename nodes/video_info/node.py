@@ -240,6 +240,40 @@ def _trim_frames(path: str, mode: str, amount: int):
     return np.stack(frames), fps
 
 
+def _trim_video(path: str, mode: str, amount: int) -> tuple[str, int]:
+    """Trim a clip and re-encode the kept frames to a temp mp4 (H.264).
+
+    Returns (output_filepath, frame_count). The file is written like our other VIDEO
+    producers (a NamedTemporaryFile) so SaveVideo can move it to the output directory.
+    """
+    import tempfile
+    from fractions import Fraction
+
+    import av
+
+    arr, fps = _trim_frames(path, mode, amount)  # B×H×W×3 uint8
+    height, width = int(arr.shape[1]), int(arr.shape[2])
+    rate = Fraction(fps).limit_denominator(1000) if fps and fps > 0 else Fraction(24, 1)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    tmp.close()
+
+    with av.open(tmp.name, mode="w") as out:
+        ostream = out.add_stream("libx264", rate=rate)
+        ostream.width = width
+        ostream.height = height
+        ostream.pix_fmt = "yuv420p"
+        for i in range(arr.shape[0]):
+            frame = av.VideoFrame.from_ndarray(arr[i], format="rgb24")
+            for packet in ostream.encode(frame):
+                out.mux(packet)
+        for packet in ostream.encode():  # flush the encoder
+            out.mux(packet)
+
+    log.info(f"[VideoInfo] trimmed video ({arr.shape[0]} frames) → {tmp.name}")
+    return tmp.name, int(arr.shape[0])
+
+
 class LoadVideoInfo:
 
     @classmethod
@@ -346,19 +380,16 @@ class TrimVideoFrames:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "FLOAT", "STRING")
-    RETURN_NAMES = ("images", "frame_count", "fps", "action")
+    RETURN_TYPES = (VIDEO, "INT", "STRING")
+    RETURN_NAMES = ("video", "frame_count", "action")
     FUNCTION     = "trim"
     CATEGORY     = "Ranomany/Utils"
 
     def trim(self, video: dict, mode: str, amount: int):
-        import numpy as np
-        import torch
-
         path = video["filepath"]
-        arr, fps = _trim_frames(path, mode, amount)
-        images = torch.from_numpy(arr.astype(np.float32) / 255.0)  # B×H×W×3
-        return (images, int(arr.shape[0]), float(fps), TRIM_ABBR.get(mode, ""))
+        out_path, frame_count = _trim_video(path, mode, amount)
+        return ({"filepath": out_path, "mime_type": "video/mp4"}, frame_count,
+                TRIM_ABBR.get(mode, ""))
 
 
 NODE_CLASS_MAPPINGS = {
