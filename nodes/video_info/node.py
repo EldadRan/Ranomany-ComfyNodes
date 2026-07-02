@@ -349,9 +349,9 @@ def _convert_fps(path: str, method: str, target_fps: int) -> tuple[str, int]:
             if ostream.width == 0:
                 ostream.width = frame.width
                 ostream.height = frame.height
-            # Let the encoder pick frame types / timestamps for the new rate.
+            # Clear pts so the encoder assigns sequential timestamps at the output rate
+            # (CFR). time_base must stay a real rational — PyAV rejects None there.
             frame.pts = None
-            frame.time_base = None
             for packet in ostream.encode(frame):
                 out.mux(packet)
             written += 1
