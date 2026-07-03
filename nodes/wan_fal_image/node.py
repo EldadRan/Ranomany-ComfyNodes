@@ -54,6 +54,11 @@ def _prompt_field(placeholder: str):
     return ("STRING", {"multiline": True, "default": "", "placeholder": placeholder})
 
 
+def _toggle():
+    return ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip",
+                        "tooltip": "When off, this input is skipped even if something is wired to it."})
+
+
 def _common_optional() -> dict:
     """api_key + polling knobs shared by every fal node (image gen is quick)."""
     return {
@@ -87,6 +92,7 @@ class WanFalTextToImage:
             },
             "optional": {
                 "reference_image": ("IMAGE", {"tooltip": "Optional reference for style guidance."}),
+                "use_reference_image": _toggle(),
                 "image_size": (_IMAGE_SIZES, {"default": _DEFAULT_SIZE}),
                 "max_images": ("INT", {"default": 1, "min": 1, "max": 5, "step": 1,
                                        "tooltip": "Up to 5 images per request (actual count may vary)."}),
@@ -105,7 +111,8 @@ class WanFalTextToImage:
     CATEGORY     = CATEGORY
     OUTPUT_NODE  = False
 
-    def generate(self, prompt, reference_image=None, image_size=_DEFAULT_SIZE, max_images=1,
+    def generate(self, prompt, reference_image=None, use_reference_image=True,
+                 image_size=_DEFAULT_SIZE, max_images=1,
                  negative_prompt="", enable_safety_checker="true", seed=-1,
                  api_key="", max_wait=300, poll_interval=3):
         if not prompt.strip():
@@ -118,7 +125,7 @@ class WanFalTextToImage:
             "max_images": int(max_images),
             "enable_safety_checker": enable_safety_checker == "true",
         }
-        if reference_image is not None:
+        if reference_image is not None and use_reference_image:
             payload["image_url"] = fal.image_to_data_uri(reference_image)
         if negative_prompt.strip():
             payload["negative_prompt"] = negative_prompt.strip()
