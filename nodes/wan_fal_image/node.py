@@ -153,7 +153,9 @@ class WanFalImageToImage:
             },
             "optional": {
                 "image_2": ("IMAGE", {"tooltip": "Second reference image (optional)."}),
+                "use_image_2": _toggle(),
                 "image_3": ("IMAGE", {"tooltip": "Third reference image (optional)."}),
+                "use_image_3": _toggle(),
                 "image_size": (_IMAGE_SIZES, {"default": _DEFAULT_SIZE}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4, "step": 1}),
                 "negative_prompt": ("STRING", {"default": "", "multiline": False,
@@ -173,6 +175,7 @@ class WanFalImageToImage:
     OUTPUT_NODE  = False
 
     def generate(self, prompt, image_1, image_2=None, image_3=None,
+                 use_image_2=True, use_image_3=True,
                  image_size=_DEFAULT_SIZE, num_images=1, negative_prompt="",
                  enable_prompt_expansion="true", enable_safety_checker="true", seed=-1,
                  api_key="", max_wait=300, poll_interval=3):
@@ -180,8 +183,9 @@ class WanFalImageToImage:
             raise ValueError("WanFalImageToImage: prompt is required.")
         key, key_status = _resolve_or_raise(api_key)
 
-        image_urls = [fal.image_to_data_uri(img) for img in (image_1, image_2, image_3)
-                      if img is not None]
+        # image_1 is always used; image_2/3 are gated by their use_* toggle.
+        refs = [(image_1, True), (image_2, use_image_2), (image_3, use_image_3)]
+        image_urls = [fal.image_to_data_uri(img) for img, on in refs if img is not None and on]
 
         payload = {
             "prompt": prompt.strip(),
