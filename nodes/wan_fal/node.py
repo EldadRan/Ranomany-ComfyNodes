@@ -110,7 +110,7 @@ class WanFalImageToVideo:
         payload = {
             "prompt": prompt.strip(),
             "resolution": resolution,
-            "duration": str(int(duration)),
+            "duration": int(duration),
             "enable_prompt_expansion": enable_prompt_expansion == "true",
             "enable_safety_checker": enable_safety_checker == "true",
         }
@@ -180,7 +180,7 @@ class WanFalEditVideo:
             "prompt": prompt.strip(),
             "video_url": fal.video_to_data_uri(video),
             "resolution": resolution,
-            "duration": str(int(duration)),
+            "duration": int(duration),
             "audio_setting": audio_setting,
             "enable_safety_checker": enable_safety_checker == "true",
         }
@@ -260,7 +260,7 @@ class WanFalReferenceToVideo:
             "prompt": prompt.strip(),
             "aspect_ratio": aspect_ratio,
             "resolution": resolution,
-            "duration": str(int(duration)),
+            "duration": int(duration),
             "multi_shots": multi_shots == "true",
             "enable_safety_checker": enable_safety_checker == "true",
         }
