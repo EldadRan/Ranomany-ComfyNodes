@@ -45,6 +45,11 @@ def _prompt_field(placeholder: str):
     return ("STRING", {"multiline": True, "default": "", "placeholder": placeholder})
 
 
+def _toggle():
+    return ("BOOLEAN", {"default": True, "label_on": "use", "label_off": "skip",
+                        "tooltip": "When off, this input is skipped even if something is wired to it."})
+
+
 def _common_optional() -> dict:
     """api_key + polling knobs shared by every fal node."""
     return {
@@ -210,12 +215,17 @@ class WanFalReferenceToVideo:
                 "prompt": _prompt_field("Describe the video (max 5000 chars)."),
             },
             "optional": {
-                "reference_image_1": ("IMAGE",),
+                "reference_image_1": ("IMAGE", {"tooltip": "Primary reference (always used if connected)."}),
                 "reference_image_2": ("IMAGE",),
+                "use_reference_image_2": _toggle(),
                 "reference_image_3": ("IMAGE",),
+                "use_reference_image_3": _toggle(),
                 "reference_image_4": ("IMAGE",),
+                "use_reference_image_4": _toggle(),
                 "reference_video_1": (VIDEO,),
+                "use_reference_video_1": _toggle(),
                 "reference_video_2": (VIDEO,),
+                "use_reference_video_2": _toggle(),
                 "negative_prompt": ("STRING", {"default": "", "multiline": False,
                                                "tooltip": "Content to exclude (max 500 chars)."}),
                 "aspect_ratio": (["16:9", "9:16", "1:1", "4:3", "3:4"], {"default": "16:9"}),
@@ -238,9 +248,10 @@ class WanFalReferenceToVideo:
     OUTPUT_NODE  = False
 
     def generate(self, prompt,
-                 reference_image_1=None, reference_image_2=None,
-                 reference_image_3=None, reference_image_4=None,
-                 reference_video_1=None, reference_video_2=None,
+                 reference_image_1=None, reference_image_2=None, reference_image_3=None,
+                 reference_image_4=None, reference_video_1=None, reference_video_2=None,
+                 use_reference_image_2=True, use_reference_image_3=True, use_reference_image_4=True,
+                 use_reference_video_1=True, use_reference_video_2=True,
                  negative_prompt="", aspect_ratio="16:9", resolution="1080p",
                  duration=5, multi_shots="false", enable_safety_checker="true", seed=-1,
                  api_key="", max_wait=600, poll_interval=15):
@@ -248,13 +259,21 @@ class WanFalReferenceToVideo:
             raise ValueError("WanFalReferenceToVideo: prompt is required.")
         key, key_status = _resolve_or_raise(api_key)
 
-        image_urls = [fal.image_to_data_uri(img) for img in
-                      (reference_image_1, reference_image_2, reference_image_3, reference_image_4)
-                      if img is not None]
-        video_urls = [fal.video_to_data_uri(v) for v in
-                      (reference_video_1, reference_video_2) if v is not None]
+        # reference_image_1 is always used; the rest are gated by their use_* toggle.
+        images = [
+            (reference_image_1, True),
+            (reference_image_2, use_reference_image_2),
+            (reference_image_3, use_reference_image_3),
+            (reference_image_4, use_reference_image_4),
+        ]
+        videos = [
+            (reference_video_1, use_reference_video_1),
+            (reference_video_2, use_reference_video_2),
+        ]
+        image_urls = [fal.image_to_data_uri(img) for img, on in images if img is not None and on]
+        video_urls = [fal.video_to_data_uri(v) for v, on in videos if v is not None and on]
         if not image_urls and not video_urls:
-            raise ValueError("WanFalReferenceToVideo: connect at least one reference image or video.")
+            raise ValueError("WanFalReferenceToVideo: connect (and enable) at least one reference image or video.")
 
         payload = {
             "prompt": prompt.strip(),
