@@ -226,9 +226,52 @@ def result_to_video(result: dict) -> tuple:
     if not url:
         raise RuntimeError(f"[fal] no video.url in result: {result}")
     filepath = download_video(url)
-    seed = result.get("seed", -1)
+    return {"filepath": filepath, "mime_type": "video/mp4"}, _seed_of(result)
+
+
+# ---------------------------------------------------------------------------
+# Output → IMAGE
+# ---------------------------------------------------------------------------
+
+def _seed_of(result: dict) -> int:
+    seed = (result or {}).get("seed", -1)
     try:
-        seed = int(seed)
+        return int(seed)
     except (TypeError, ValueError):
-        seed = -1
-    return {"filepath": filepath, "mime_type": "video/mp4"}, seed
+        return -1
+
+
+def image_from_url(url: str) -> torch.Tensor:
+    """Download an image URL → H×W×3 float tensor in [0,1]."""
+    with urllib.request.urlopen(url) as r:
+        raw = r.read()
+    arr = np.array(Image.open(io.BytesIO(raw)).convert("RGB")).astype(np.float32) / 255.0
+    return torch.from_numpy(arr)
+
+
+def _stack_batch(tensors: list) -> torch.Tensor:
+    """Stack H×W×3 tensors into an N×H×W×3 batch, zero-padding to the largest size."""
+    if len(tensors) == 1:
+        return tensors[0].unsqueeze(0)
+    max_h = max(t.shape[0] for t in tensors)
+    max_w = max(t.shape[1] for t in tensors)
+    padded = []
+    for t in tensors:
+        h, w = t.shape[:2]
+        if h < max_h or w < max_w:
+            pad = torch.zeros(max_h, max_w, 3, dtype=t.dtype)
+            pad[:h, :w] = t
+            padded.append(pad)
+        else:
+            padded.append(t)
+    return torch.stack(padded, dim=0)
+
+
+def result_to_images(result: dict) -> tuple:
+    """fal output JSON → (IMAGE batch tensor, seed). Downloads every result['images'][].url."""
+    images = (result or {}).get("images") or []
+    urls = [im.get("url") for im in images if im.get("url")]
+    if not urls:
+        raise RuntimeError(f"[fal] no images in result: {result}")
+    tensors = [image_from_url(u) for u in urls]
+    return _stack_batch(tensors), _seed_of(result)

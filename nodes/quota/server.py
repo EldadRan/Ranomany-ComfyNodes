@@ -56,7 +56,8 @@ _db_lock = threading.Lock()
 # so you add nodes as the pack grows by editing that file, no code edit and no restart.
 KINDS = ("image", "video", "utils")
 _DEFAULT_CATEGORIES = {
-    "image": ["GeminiImage", "GeminiImageMultiRef", "OpenAIImage", "OpenAIImageMultiRef", "WanImage"],
+    "image": ["GeminiImage", "GeminiImageMultiRef", "OpenAIImage", "OpenAIImageMultiRef", "WanImage",
+              "WanFalTextToImage", "WanFalImageToImage"],
     "video": ["GeminiVeo", "WanVideo", "WanVideoEdit",
               "WanFalImageToVideo", "WanFalEditVideo", "WanFalReferenceToVideo"],
     "utils": ["RanomanyExtractVideoFrames", "RanomanyTrimVideoFrames",

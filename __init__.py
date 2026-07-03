@@ -42,6 +42,7 @@ _NODE_FILES = [
     ("nodes/metadata_builder/node.py",   "metadata_builder"),
     ("nodes/multi_concat/node.py",       "multi_concat"),
     ("nodes/wan_fal/node.py",            "wan_fal"),
+    ("nodes/wan_fal_image/node.py",      "wan_fal_image"),
 ]
 
 for _rel, _label in _NODE_FILES:
