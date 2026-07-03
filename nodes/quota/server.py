@@ -59,7 +59,7 @@ _DEFAULT_CATEGORIES = {
     "image": ["GeminiImage", "GeminiImageMultiRef", "OpenAIImage", "OpenAIImageMultiRef", "WanImage",
               "WanFalTextToImage", "WanFalImageToImage"],
     "video": ["GeminiVeo", "WanVideo", "WanVideoEdit",
-              "WanFalImageToVideo", "WanFalEditVideo", "WanFalReferenceToVideo"],
+              "WanFalTextToVideo", "WanFalImageToVideo", "WanFalEditVideo", "WanFalReferenceToVideo"],
     "utils": ["RanomanyExtractVideoFrames", "RanomanyTrimVideoFrames",
               "RanomanyConvertVideoFPS"],
 }

@@ -31,6 +31,7 @@ log = logging.getLogger("WanFal")
 VIDEO = "VIDEO"
 CATEGORY = "Ranomany/fal.ai"
 
+_T2V_MODEL = "fal-ai/wan/v2.7/text-to-video"
 _I2V_MODEL = "fal-ai/wan/v2.7/image-to-video"
 _EDIT_MODEL = "fal-ai/wan/v2.7/edit-video"
 _R2V_MODEL = "fal-ai/wan/v2.7/reference-to-video"
@@ -67,6 +68,66 @@ def _resolve_or_raise(api_key: str) -> tuple:
     if not key:
         raise EnvironmentError(_KEY_HELP)
     return key, status
+
+
+# ---------------------------------------------------------------------------
+# Text → video
+# ---------------------------------------------------------------------------
+
+class WanFalTextToVideo:
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": _prompt_field("Describe the video (max 5000 chars)."),
+            },
+            "optional": {
+                "resolution": (["1080p", "720p"], {"default": "1080p"}),
+                "aspect_ratio": (["16:9", "9:16", "1:1", "4:3", "3:4"], {"default": "16:9"}),
+                "duration": ("INT", {"default": 5, "min": 2, "max": 15, "step": 1,
+                                     "tooltip": "Output duration in seconds (2–15)."}),
+                "negative_prompt": ("STRING", {"default": "", "multiline": False,
+                                               "tooltip": "Content to exclude (max 500 chars)."}),
+                "enable_prompt_expansion": (["true", "false"], {"default": "true"}),
+                "enable_safety_checker":   (["true", "false"], {"default": "true"}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647, "step": 1,
+                                 "tooltip": "Random seed. -1 = random each run."}),
+                **_common_optional(),
+            },
+        }
+
+    RETURN_TYPES = (VIDEO, "INT", "STRING")
+    RETURN_NAMES = ("video", "seed", "key_status")
+    FUNCTION     = "generate"
+    CATEGORY     = CATEGORY
+    OUTPUT_NODE  = False
+
+    def generate(self, prompt, resolution="1080p", aspect_ratio="16:9", duration=5,
+                 negative_prompt="", enable_prompt_expansion="true",
+                 enable_safety_checker="true", seed=-1,
+                 api_key="", max_wait=600, poll_interval=15):
+        if not prompt.strip():
+            raise ValueError("WanFalTextToVideo: prompt is required.")
+        key, key_status = _resolve_or_raise(api_key)
+
+        payload = {
+            "prompt": prompt.strip(),
+            "resolution": resolution,
+            "aspect_ratio": aspect_ratio,
+            "duration": int(duration),
+            "enable_prompt_expansion": enable_prompt_expansion == "true",
+            "enable_safety_checker": enable_safety_checker == "true",
+        }
+        if negative_prompt.strip():
+            payload["negative_prompt"] = negative_prompt.strip()
+        if seed >= 0:
+            payload["seed"] = int(seed)
+
+        log.info(f"[WanFalTextToVideo] resolution={resolution} ratio={aspect_ratio} duration={duration}s")
+        result = fal.run(_T2V_MODEL, payload, key, max_wait, poll_interval, label="WanFalTextToVideo")
+        video, out_seed = fal.result_to_video(result)
+        return (video, out_seed, key_status)
 
 
 # ---------------------------------------------------------------------------
@@ -304,12 +365,14 @@ class WanFalReferenceToVideo:
 # ---------------------------------------------------------------------------
 
 NODE_CLASS_MAPPINGS = {
+    "WanFalTextToVideo":      WanFalTextToVideo,
     "WanFalImageToVideo":     WanFalImageToVideo,
     "WanFalEditVideo":        WanFalEditVideo,
     "WanFalReferenceToVideo": WanFalReferenceToVideo,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "WanFalTextToVideo":      "Wan 2.7 Text to Video (fal)",
     "WanFalImageToVideo":     "Wan 2.7 Image to Video (fal)",
     "WanFalEditVideo":        "Wan 2.7 Edit Video (fal)",
     "WanFalReferenceToVideo": "Wan 2.7 Reference to Video (fal)",

@@ -85,6 +85,8 @@ wan_fal:
     All share the fal_common client (nodes/fal_common/client.py: auth, submit/poll, media
     data-URIs, download) so future fal.ai models reuse the transport.
 
+      WanFalTextToVideo       → fal-ai/wan/v2.7/text-to-video
+        prompt-only generation (no audio)
       WanFalImageToVideo      → fal-ai/wan/v2.7/image-to-video
         first frame + optional end frame + optional video-continuation (no audio)
       WanFalEditVideo         → fal-ai/wan/v2.7/edit-video
