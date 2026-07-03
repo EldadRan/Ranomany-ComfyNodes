@@ -31,8 +31,18 @@ CATEGORY = "Ranomany/fal.ai"
 _T2I_MODEL = "wan/v2.6/text-to-image"
 _I2I_MODEL = "wan/v2.6/image-to-image"
 
-_IMAGE_SIZES = ["square_hd", "square", "portrait_4_3", "portrait_16_9",
-                "landscape_4_3", "landscape_16_9"]
+# Human-readable dropdown labels → fal image_size enum. The label encodes the
+# actual width:height (portrait_4_3 is a 4:3 family rotated to portrait, i.e. 3:4).
+_IMAGE_SIZE_LABELS = {
+    "Square 1:1 (HD)":       "square_hd",
+    "Square 1:1 (small)":    "square",
+    "Portrait 3:4":          "portrait_4_3",
+    "Portrait 9:16 (tall)":  "portrait_16_9",
+    "Landscape 4:3":         "landscape_4_3",
+    "Landscape 16:9 (wide)": "landscape_16_9",
+}
+_IMAGE_SIZES = list(_IMAGE_SIZE_LABELS)
+_DEFAULT_SIZE = "Square 1:1 (HD)"
 
 _KEY_HELP = (
     "No FAL_KEY found. Pass it via the api_key input, set FAL_KEY in your "
@@ -77,7 +87,7 @@ class WanFalTextToImage:
             },
             "optional": {
                 "reference_image": ("IMAGE", {"tooltip": "Optional reference for style guidance."}),
-                "image_size": (_IMAGE_SIZES, {"default": "square_hd"}),
+                "image_size": (_IMAGE_SIZES, {"default": _DEFAULT_SIZE}),
                 "max_images": ("INT", {"default": 1, "min": 1, "max": 5, "step": 1,
                                        "tooltip": "Up to 5 images per request (actual count may vary)."}),
                 "negative_prompt": ("STRING", {"default": "", "multiline": False,
@@ -95,7 +105,7 @@ class WanFalTextToImage:
     CATEGORY     = CATEGORY
     OUTPUT_NODE  = False
 
-    def generate(self, prompt, reference_image=None, image_size="square_hd", max_images=1,
+    def generate(self, prompt, reference_image=None, image_size=_DEFAULT_SIZE, max_images=1,
                  negative_prompt="", enable_safety_checker="true", seed=-1,
                  api_key="", max_wait=300, poll_interval=3):
         if not prompt.strip():
@@ -104,7 +114,7 @@ class WanFalTextToImage:
 
         payload = {
             "prompt": prompt.strip(),
-            "image_size": image_size,
+            "image_size": _IMAGE_SIZE_LABELS.get(image_size, image_size),
             "max_images": int(max_images),
             "enable_safety_checker": enable_safety_checker == "true",
         }
@@ -137,7 +147,7 @@ class WanFalImageToImage:
             "optional": {
                 "image_2": ("IMAGE", {"tooltip": "Second reference image (optional)."}),
                 "image_3": ("IMAGE", {"tooltip": "Third reference image (optional)."}),
-                "image_size": (_IMAGE_SIZES, {"default": "square_hd"}),
+                "image_size": (_IMAGE_SIZES, {"default": _DEFAULT_SIZE}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4, "step": 1}),
                 "negative_prompt": ("STRING", {"default": "", "multiline": False,
                                                "tooltip": "Content to avoid (max 500 chars)."}),
@@ -156,7 +166,7 @@ class WanFalImageToImage:
     OUTPUT_NODE  = False
 
     def generate(self, prompt, image_1, image_2=None, image_3=None,
-                 image_size="square_hd", num_images=1, negative_prompt="",
+                 image_size=_DEFAULT_SIZE, num_images=1, negative_prompt="",
                  enable_prompt_expansion="true", enable_safety_checker="true", seed=-1,
                  api_key="", max_wait=300, poll_interval=3):
         if not prompt.strip():
@@ -169,7 +179,7 @@ class WanFalImageToImage:
         payload = {
             "prompt": prompt.strip(),
             "image_urls": image_urls,
-            "image_size": image_size,
+            "image_size": _IMAGE_SIZE_LABELS.get(image_size, image_size),
             "num_images": int(num_images),
             "enable_prompt_expansion": enable_prompt_expansion == "true",
             "enable_safety_checker": enable_safety_checker == "true",
