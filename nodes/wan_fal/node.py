@@ -276,7 +276,8 @@ class WanFalReferenceToVideo:
                 "prompt": _prompt_field("Describe the video (max 5000 chars)."),
             },
             "optional": {
-                "reference_image_1": ("IMAGE", {"tooltip": "Primary reference (always used if connected)."}),
+                "reference_image_1": ("IMAGE",),
+                "use_reference_image_1": _toggle(),
                 "reference_image_2": ("IMAGE",),
                 "use_reference_image_2": _toggle(),
                 "reference_image_3": ("IMAGE",),
@@ -311,8 +312,8 @@ class WanFalReferenceToVideo:
     def generate(self, prompt,
                  reference_image_1=None, reference_image_2=None, reference_image_3=None,
                  reference_image_4=None, reference_video_1=None, reference_video_2=None,
-                 use_reference_image_2=True, use_reference_image_3=True, use_reference_image_4=True,
-                 use_reference_video_1=True, use_reference_video_2=True,
+                 use_reference_image_1=True, use_reference_image_2=True, use_reference_image_3=True,
+                 use_reference_image_4=True, use_reference_video_1=True, use_reference_video_2=True,
                  negative_prompt="", aspect_ratio="16:9", resolution="1080p",
                  duration=5, multi_shots="false", enable_safety_checker="true", seed=-1,
                  api_key="", max_wait=600, poll_interval=15):
@@ -320,9 +321,9 @@ class WanFalReferenceToVideo:
             raise ValueError("WanFalReferenceToVideo: prompt is required.")
         key, key_status = _resolve_or_raise(api_key)
 
-        # reference_image_1 is always used; the rest are gated by their use_* toggle.
+        # Every reference is gated by its use_* toggle.
         images = [
-            (reference_image_1, True),
+            (reference_image_1, use_reference_image_1),
             (reference_image_2, use_reference_image_2),
             (reference_image_3, use_reference_image_3),
             (reference_image_4, use_reference_image_4),
