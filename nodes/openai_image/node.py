@@ -194,9 +194,47 @@ def _autocorrect_size(w: int, h: int) -> tuple:
     return w, h, f"{w}x{h}", warnings
 
 
-def _tensor_from_pil(img: Image.Image) -> torch.Tensor:
-    arr = np.array(img.convert("RGB")).astype(np.float32) / 255.0
-    return torch.from_numpy(arr)  # H×W×3
+def _tensor_from_pil(img: Image.Image) -> tuple[torch.Tensor, torch.Tensor]:
+    rgba = np.array(img.convert("RGBA")).astype(np.float32) / 255.0
+    rgb  = torch.from_numpy(rgba[:, :, :3])       # H×W×3
+    mask = torch.from_numpy(1.0 - rgba[:, :, 3])  # H×W, 1 = transparent (ComfyUI convention)
+    return rgb, mask
+
+
+def _batch_from_response(response, err_prefix: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Decode API response items into an IMAGE batch plus a MASK batch (inverted alpha)."""
+    images, masks = [], []
+    for item in response.data:
+        if item.b64_json:
+            raw = base64.b64decode(item.b64_json)
+        elif item.url:
+            import urllib.request
+            with urllib.request.urlopen(item.url) as resp:
+                raw = resp.read()
+        else:
+            raise RuntimeError(f"{err_prefix}: response item has neither b64_json nor url.")
+        rgb, mask = _tensor_from_pil(Image.open(io.BytesIO(raw)))
+        images.append(rgb)
+        masks.append(mask)
+
+    if not images:
+        raise RuntimeError(f"{err_prefix}: no images returned by the API.")
+
+    max_h = max(t.shape[0] for t in images)
+    max_w = max(t.shape[1] for t in images)
+    padded_imgs, padded_masks = [], []
+    for rgb, mask in zip(images, masks):
+        h, w = rgb.shape[:2]
+        if h < max_h or w < max_w:
+            pad_img = torch.zeros(max_h, max_w, 3, dtype=rgb.dtype)
+            pad_img[:h, :w] = rgb
+            pad_mask = torch.ones(max_h, max_w, dtype=mask.dtype)  # padding is transparent
+            pad_mask[:h, :w] = mask
+            rgb, mask = pad_img, pad_mask
+        padded_imgs.append(rgb)
+        padded_masks.append(mask)
+
+    return torch.stack(padded_imgs, dim=0), torch.stack(padded_masks, dim=0)
 
 
 class OpenAIImage:
@@ -243,8 +281,8 @@ class OpenAIImage:
             },
         }
 
-    RETURN_TYPES  = ("IMAGE", "STRING")
-    RETURN_NAMES  = ("images", "key_status")
+    RETURN_TYPES  = ("IMAGE", "STRING", "MASK")
+    RETURN_NAMES  = ("images", "key_status", "mask")
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/OpenAI"
     OUTPUT_NODE   = False
@@ -339,39 +377,8 @@ class OpenAIImage:
                 log.warning(f"[OpenAIImage] transient error attempt {attempt+1}: {exc}; retry in {delay}s")
                 time.sleep(delay)
 
-        tensors = []
-        for item in response.data:
-            if item.b64_json:
-                raw = base64.b64decode(item.b64_json)
-            elif item.url:
-                import urllib.request
-                with urllib.request.urlopen(item.url) as resp:
-                    raw = resp.read()
-            else:
-                raise RuntimeError("OpenAIImage: response item has neither b64_json nor url.")
-            pil = Image.open(io.BytesIO(raw)).convert("RGB")
-            tensors.append(_tensor_from_pil(pil))
-
-        if not tensors:
-            raise RuntimeError("OpenAIImage: no images returned by the API.")
-
-        if len(tensors) > 1:
-            max_h = max(t.shape[0] for t in tensors)
-            max_w = max(t.shape[1] for t in tensors)
-            padded = []
-            for t in tensors:
-                h, w = t.shape[:2]
-                if h < max_h or w < max_w:
-                    pad = torch.zeros(max_h, max_w, 3, dtype=t.dtype)
-                    pad[:h, :w] = t
-                    padded.append(pad)
-                else:
-                    padded.append(t)
-            batch = torch.stack(padded, dim=0)
-        else:
-            batch = tensors[0].unsqueeze(0)
-
-        return (batch, key_status)
+        batch, mask_batch = _batch_from_response(response, "OpenAIImage")
+        return (batch, key_status, mask_batch)
 
 
 _MAX_EDIT_IMAGES = 16
@@ -427,8 +434,8 @@ class OpenAIImageMultiRef:
             },
         }
 
-    RETURN_TYPES  = ("IMAGE", "STRING")
-    RETURN_NAMES  = ("images", "key_status")
+    RETURN_TYPES  = ("IMAGE", "STRING", "MASK")
+    RETURN_NAMES  = ("images", "key_status", "mask")
     FUNCTION      = "generate"
     CATEGORY      = "Ranomany/OpenAI"
     OUTPUT_NODE   = False
@@ -527,39 +534,8 @@ class OpenAIImageMultiRef:
                 log.warning(f"[OpenAIImageMultiRef] transient error attempt {attempt+1}: {exc}; retry in {delay}s")
                 time.sleep(delay)
 
-        tensors = []
-        for item in response.data:
-            if item.b64_json:
-                raw = base64.b64decode(item.b64_json)
-            elif item.url:
-                import urllib.request
-                with urllib.request.urlopen(item.url) as resp:
-                    raw = resp.read()
-            else:
-                raise RuntimeError("OpenAIImageMultiRef: response item has neither b64_json nor url.")
-            pil = Image.open(io.BytesIO(raw)).convert("RGB")
-            tensors.append(_tensor_from_pil(pil))
-
-        if not tensors:
-            raise RuntimeError("OpenAIImageMultiRef: no images returned by the API.")
-
-        if len(tensors) > 1:
-            max_h = max(t.shape[0] for t in tensors)
-            max_w = max(t.shape[1] for t in tensors)
-            padded = []
-            for t in tensors:
-                h, w = t.shape[:2]
-                if h < max_h or w < max_w:
-                    pad = torch.zeros(max_h, max_w, 3, dtype=t.dtype)
-                    pad[:h, :w] = t
-                    padded.append(pad)
-                else:
-                    padded.append(t)
-            batch = torch.stack(padded, dim=0)
-        else:
-            batch = tensors[0].unsqueeze(0)
-
-        return (batch, key_status)
+        batch, mask_batch = _batch_from_response(response, "OpenAIImageMultiRef")
+        return (batch, key_status, mask_batch)
 
 
 NODE_CLASS_MAPPINGS = {
