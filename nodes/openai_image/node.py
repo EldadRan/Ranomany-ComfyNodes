@@ -231,7 +231,7 @@ class OpenAIImage:
                     "tooltip": "Output height in pixels. Snapped to nearest multiple of 16. Max 3840px. Ratio and pixel-count limits auto-corrected before the API call.",
                 }),
                 "quality":            (["auto", "low", "medium", "high"], {"default": "auto"}),
-                "background":         (["auto", "opaque"], {"default": "auto"}),
+                "background":         (["auto", "opaque" , "transparent"], {"default": "auto"}),
                 "output_format":      (["png", "jpeg", "webp"], {"default": "png"}),
                 "output_compression": ("INT", {
                     "default": 85, "min": 0, "max": 100, "step": 1,
