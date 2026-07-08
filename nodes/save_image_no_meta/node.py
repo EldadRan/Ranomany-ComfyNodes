@@ -33,6 +33,8 @@ class SaveImageNoMeta:
             },
             "optional": {
                 "extra_metadata":  ("STRING", {"default": "", "multiline": True}),
+                "mask":            ("MASK", {"tooltip": "Optional alpha. Saved as RGBA "
+                                    "(1 = transparent, ComfyUI convention). Omit for flat RGB."}),
             },
         }
 
@@ -42,7 +44,7 @@ class SaveImageNoMeta:
     CATEGORY     = "Ranomany/Utils"
 
     def save(self, images, filename_prefix: str = "ComfyUI",
-             extra_metadata: str = "", prompt=None, extra_pnginfo=None):
+             extra_metadata: str = "", mask=None, prompt=None, extra_pnginfo=None):
         # Resolve filename pattern (handles %date% etc. via folder_paths helpers).
         full_output_folder, filename, counter, subfolder, _ = (
             folder_paths.get_save_image_path(filename_prefix, self.output_dir,
@@ -66,8 +68,20 @@ class SaveImageNoMeta:
         # the workflow JSON) — that's the entire point of this node.
         results = []
         for batch_index, image_tensor in enumerate(images):
-            arr = 255.0 * image_tensor.cpu().numpy()
-            img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+            arr = np.clip(255.0 * image_tensor.cpu().numpy(), 0, 255).astype(np.uint8)  # H×W×C
+            img = Image.fromarray(arr)
+
+            # Optional alpha: fold the matching mask in as an alpha channel (RGBA).
+            # Our masks follow the repo convention 1 = transparent, so alpha = 1 - mask.
+            if mask is not None and img.mode == "RGB":
+                m = mask[batch_index] if mask.ndim == 3 and batch_index < mask.shape[0] else \
+                    (mask[0] if mask.ndim == 3 else mask)
+                alpha_arr = (1.0 - m.cpu().numpy())  # H×W, 1 = opaque now
+                alpha_pil = Image.fromarray(np.clip(alpha_arr * 255, 0, 255).astype(np.uint8), mode="L")
+                if alpha_pil.size != img.size:  # (W, H)
+                    alpha_pil = alpha_pil.resize(img.size, Image.LANCZOS)
+                img = img.convert("RGBA")
+                img.putalpha(alpha_pil)
 
             png_info = PngImagePlugin.PngInfo()
             for k, v in meta_pairs.items():
