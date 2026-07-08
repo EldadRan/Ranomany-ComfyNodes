@@ -30,6 +30,7 @@ except Exception:
 _NODE_FILES = [
     ("nodes/api_key/node.py",            "api_key"),
     ("nodes/gemini_image/node.py",       "gemini_image"),
+    ("nodes/gemini_describe/node.py",    "gemini_describe"),
     ("nodes/gemini_veo/node.py",         "gemini_veo"),
     ("nodes/openai_image/node.py",       "openai_image"),
     ("nodes/save_image_no_meta/node.py", "save_image_no_meta"),

@@ -27,6 +27,17 @@ gemini_image:
   deps:    [google-genai>=1.0.0]
   version: "0.1.0"
 
+gemini_describe:
+  description: |
+    GeminiDescribe — image + prompt → text description via the Gemini API
+    (Gemini 3.1 Flash Lite, vision-capable text model; model id is editable).
+    Accepts a required IMAGE and a prompt (default "Describe this image in
+    detail"), optional system_instruction. Outputs (description STRING,
+    key_status STRING). Category: Ranomany/Gemini.
+    Requires GEMINI_API_KEY env var (or pass it via the api_key input).
+  deps:    [google-genai>=1.0.0]
+  version: "0.1.0"
+
 openai_image:
   description: |
     Generate or edit images via the OpenAI Images API (gpt-image-2 / ChatGPT Images 2.0).
