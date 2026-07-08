@@ -275,3 +275,62 @@ def result_to_images(result: dict) -> tuple:
         raise RuntimeError(f"[fal] no images in result: {result}")
     tensors = [image_from_url(u) for u in urls]
     return _stack_batch(tensors), _seed_of(result)
+
+
+# ---------------------------------------------------------------------------
+# Output → IMAGE + MASK (alpha-preserving, for RGBA / layered models)
+# ---------------------------------------------------------------------------
+
+def image_from_url_rgba(url: str) -> tuple:
+    """Download an image URL → (H×W×3 RGB float tensor, H×W MASK float tensor).
+
+    Alpha is preserved as a ComfyUI MASK where 1 = transparent (0 = opaque),
+    matching ComfyUI's convention. Images without alpha yield an all-zero mask.
+    """
+    with urllib.request.urlopen(url) as r:
+        raw = r.read()
+    rgba = np.array(Image.open(io.BytesIO(raw)).convert("RGBA")).astype(np.float32) / 255.0
+    rgb  = torch.from_numpy(rgba[:, :, :3])       # H×W×3
+    mask = torch.from_numpy(1.0 - rgba[:, :, 3])  # H×W, 1 = transparent
+    return rgb, mask
+
+
+def _stack_batch_with_masks(tensors: list, masks: list) -> tuple:
+    """Stack H×W×3 images + H×W masks into batches, zero-padding to the largest size.
+
+    Image padding is black; mask padding is 1 (transparent), so composited padding
+    stays invisible.
+    """
+    if len(tensors) == 1:
+        return tensors[0].unsqueeze(0), masks[0].unsqueeze(0)
+    max_h = max(t.shape[0] for t in tensors)
+    max_w = max(t.shape[1] for t in tensors)
+    p_imgs, p_masks = [], []
+    for img, mask in zip(tensors, masks):
+        h, w = img.shape[:2]
+        if h < max_h or w < max_w:
+            pad_img = torch.zeros(max_h, max_w, 3, dtype=img.dtype)
+            pad_img[:h, :w] = img
+            pad_mask = torch.ones(max_h, max_w, dtype=mask.dtype)  # padding is transparent
+            pad_mask[:h, :w] = mask
+            img, mask = pad_img, pad_mask
+        p_imgs.append(img)
+        p_masks.append(mask)
+    return torch.stack(p_imgs, dim=0), torch.stack(p_masks, dim=0)
+
+
+def result_to_images_rgba(result: dict) -> tuple:
+    """fal output JSON → (IMAGE batch, MASK batch, seed), preserving per-image alpha.
+
+    Use for RGBA / layered endpoints (e.g. qwen-image-layered) where each output
+    layer carries transparency. Downloads every result['images'][].url.
+    """
+    images = (result or {}).get("images") or []
+    urls = [im.get("url") for im in images if im.get("url")]
+    if not urls:
+        raise RuntimeError(f"[fal] no images in result: {result}")
+    pairs = [image_from_url_rgba(u) for u in urls]
+    tensors = [rgb for rgb, _ in pairs]
+    masks   = [m for _, m in pairs]
+    batch, mask_batch = _stack_batch_with_masks(tensors, masks)
+    return batch, mask_batch, _seed_of(result)

@@ -43,6 +43,7 @@ _NODE_FILES = [
     ("nodes/multi_concat/node.py",       "multi_concat"),
     ("nodes/wan_fal/node.py",            "wan_fal"),
     ("nodes/wan_fal_image/node.py",      "wan_fal_image"),
+    ("nodes/qwen_layered/node.py",       "qwen_layered"),
 ]
 
 for _rel, _label in _NODE_FILES:

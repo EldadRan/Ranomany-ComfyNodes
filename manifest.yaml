@@ -113,6 +113,20 @@ wan_fal_image:
   deps:    []
   version: "0.1.0"
 
+qwen_layered:
+  description: |
+    Qwen Image Layered on fal.ai — one node over the fal queue REST API (shares
+    the fal_common client). Decomposes an input image into RGBA layers.
+
+      QwenImageLayered → fal-ai/qwen-image-layered
+        image (+ optional prompt) → N RGBA layers
+
+    Outputs (layers IMAGE batch, masks MASK batch = per-layer alpha, seed, key_status);
+    one frame per layer, mask 1 = transparent (ComfyUI convention).
+    Category: Ranomany/fal.ai. Requires FAL_KEY env var (or pass it via the api_key input).
+  deps:    []
+  version: "0.1.0"
+
 camera_angle:
   description: |
     Ships Camera Angle (3D camera-angle control via a Vue + Three.js GUI) and
