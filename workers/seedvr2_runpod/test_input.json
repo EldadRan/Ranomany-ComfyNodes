@@ -1,0 +1,13 @@
+{
+  "input": {
+    "mode": "upscale",
+    "image": "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGNomLAAK2IYWhIAKz5sAXzrcjcAAAAASUVORK5CYII=",
+    "image_mime": "image/png",
+    "model": "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
+    "resolution": 64,
+    "max_resolution": 0,
+    "seed": 42,
+    "color_correction": "wavelet",
+    "debug_level": 2
+  }
+}

@@ -124,6 +124,21 @@ wan_fal_image:
   deps:    []
   version: "0.1.0"
 
+seedvr_runpod:
+  description: |
+    SeedVR2 Upscale (RunPod) — diffusion image upscaling (numz/ComfyUI-SeedVR2_VideoUpscaler)
+    on a RunPod serverless GPU endpoint; the companion worker lives in workers/seedvr2_runpod/.
+    Uses the shared runpod_common client (nodes/runpod_common/client.py: config resolution,
+    submit/poll, base64 image transport) so future RunPod endpoints reuse the transport.
+
+      RanomanySeedVR2Upscale → POST /v2/<endpoint>/run {mode:"upscale", image, model,
+        resolution, max_resolution, seed, color_correction}
+
+    Outputs (image IMAGE, seed, key_status). Category: Ranomany/RunPod.
+    Requires RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID env vars / .env (or the node inputs).
+  deps:    []
+  version: "0.1.0"
+
 qwen_layered:
   description: |
     Qwen Image Layered on fal.ai — one node over the fal queue REST API (shares
