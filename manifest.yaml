@@ -136,7 +136,7 @@ seedvr_runpod:
 
     Optional MASK input carries alpha (sent as RGBA); SeedVR2 upscales it with edge
     guidance and returns it on the mask output. Outputs (image IMAGE, mask MASK, seed,
-    key_status). Category: Ranomany/RunPod.
+    key_status). Category: Ranomany/Media Tools.
     Requires RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID env vars / .env (or the node inputs).
   deps:    []
   version: "0.2.0"
@@ -149,7 +149,7 @@ image_compare_rgba:
     into the image as an alpha channel so transparency shows in the slider (1 =
     transparent). image_a / image_b / mask_a / mask_b all optional; no data outputs
     (OUTPUT_NODE). Ships web/image_compare_rgba.js, which re-binds the native
-    `imagecompare` slider widget to this class. Category: Ranomany/image.
+    `imagecompare` slider widget to this class. Category: Ranomany/Utils.
   deps:    []
   version: "0.1.0"
 

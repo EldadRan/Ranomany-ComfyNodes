@@ -71,7 +71,7 @@ class RanomanyImageCompareRGBA:
     RETURN_TYPES = ()
     FUNCTION = "compare"
     OUTPUT_NODE = True
-    CATEGORY = "Ranomany/image"
+    CATEGORY = "Ranomany/Utils"
     DESCRIPTION = (
         "Compare two images side by side with a draggable slider (like the native "
         "Compare Images), preserving RGBA transparency via an optional mask per side."

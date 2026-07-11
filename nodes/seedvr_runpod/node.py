@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - standalone import path
 
 log = logging.getLogger("SeedVR2RunPod")
 
-CATEGORY = "Ranomany/RunPod"
+CATEGORY = "Ranomany/Media Tools"
 
 # DiT checkpoints known to the worker's pinned SeedVR2 build (src/utils/model_registry.py).
 # The worker's image bakes in 7B fp16 (the default below); it runs with no download.
