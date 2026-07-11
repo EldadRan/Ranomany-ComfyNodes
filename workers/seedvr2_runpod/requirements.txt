@@ -2,3 +2,10 @@
 # SeedVR2 repo's requirements.txt (installed in the Dockerfile).
 runpod
 pillow
+huggingface_hub   # build-time weight bake (bake_weights.py)
+
+# Pin diffusers to SeedVR2's declared floor. SeedVR2 asks for diffusers>=0.33.1
+# (unpinned), but newer diffusers (~0.35) ships an attention_dispatch custom-op
+# whose `X | None` type hints are rejected by torch 2.4.0's infer_schema — which
+# crashes the whole model import at runtime. 0.33.1 predates that module.
+diffusers==0.33.1

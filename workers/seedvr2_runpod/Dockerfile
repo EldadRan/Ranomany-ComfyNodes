@@ -25,15 +25,19 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r "$SEEDVR2_DIR/requirements.txt" -r requirements.txt
 
+# Fail fast on dependency incompatibilities: import the real SeedVR2 inference chain
+# now (no GPU needed for import) so a bad diffusers/torch combo breaks the build in
+# seconds — BEFORE the multi-GB weight download and long before the first job.
+RUN cd "$SEEDVR2_DIR" && python -c "import inference_cli; print('inference_cli import OK')"
+
 # Bake the weights into the image (its own layer, so editing handler.py below does
-# not re-download multi-GB weights on rebuild). ~14 GB DiT + ~0.3 GB VAE.
+# not re-download the ~17 GB of weights on rebuild).
 COPY bake_weights.py ./
 RUN python bake_weights.py
 
 COPY handler.py test_input.json ./
 
-# Build-time sanity check: the handler must import without a GPU
-# (the SeedVR2/torch import inside it is lazy, so this stays cheap).
+# Build-time sanity check: the handler must import (its SeedVR2 import is lazy).
 RUN python -c "import handler"
 
 CMD ["python", "-u", "handler.py"]
