@@ -1,0 +1,4 @@
+# Handler-only deps. torch/cv2/etc. come from the base image + the vendored
+# SeedVR2 repo's requirements.txt (installed in the Dockerfile).
+runpod
+pillow

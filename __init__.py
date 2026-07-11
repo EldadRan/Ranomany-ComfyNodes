@@ -26,6 +26,12 @@ try:
 except Exception:
     print(f"[Ranomany-ComfyNodes] ERR fal_common:\n{traceback.format_exc()}")
 
+try:
+    sys.modules["ranomany_runpod_common"] = _load("nodes/runpod_common/client.py")
+    print("[Ranomany-ComfyNodes] OK  runpod_common (shared RunPod client)")
+except Exception:
+    print(f"[Ranomany-ComfyNodes] ERR runpod_common:\n{traceback.format_exc()}")
+
 
 _NODE_FILES = [
     ("nodes/api_key/node.py",            "api_key"),
@@ -45,6 +51,7 @@ _NODE_FILES = [
     ("nodes/wan_fal/node.py",            "wan_fal"),
     ("nodes/wan_fal_image/node.py",      "wan_fal_image"),
     ("nodes/qwen_layered/node.py",       "qwen_layered"),
+    ("nodes/seedvr_runpod/node.py",      "seedvr_runpod"),
 ]
 
 for _rel, _label in _NODE_FILES:
