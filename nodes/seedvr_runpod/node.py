@@ -66,6 +66,9 @@ class RanomanySeedVR2Upscale:
                 "image": ("IMAGE", {"tooltip": "Image to upscale (first frame of a batch is used)."}),
             },
             "optional": {
+                "mask": ("MASK", {"tooltip": "Optional alpha to upscale alongside the image (e.g. the MASK "
+                                             "from Load Image). SeedVR2 upscales it with edge guidance and "
+                                             "the result comes back on the mask output. 1 = transparent."}),
                 "model": (_DIT_MODELS, {"default": _DEFAULT_MODEL,
                                         "tooltip": "SeedVR2 DiT checkpoint. The default (7B fp16) is baked "
                                                    "into the worker; other choices download on first use."}),
@@ -90,13 +93,13 @@ class RanomanySeedVR2Upscale:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "INT", "STRING")
-    RETURN_NAMES = ("image", "seed", "key_status")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "STRING")
+    RETURN_NAMES = ("image", "mask", "seed", "key_status")
     FUNCTION     = "upscale"
     CATEGORY     = CATEGORY
     OUTPUT_NODE  = False
 
-    def upscale(self, image, model=_DEFAULT_MODEL, resolution=1080, max_resolution=0,
+    def upscale(self, image, mask=None, model=_DEFAULT_MODEL, resolution=1080, max_resolution=0,
                 seed=-1, color_correction="wavelet",
                 endpoint_id="", api_key="", max_wait=600, poll_interval=5):
         key, endpoint, key_status = rp.resolve_config(api_key, endpoint_id)
@@ -109,7 +112,7 @@ class RanomanySeedVR2Upscale:
 
         payload = {
             "mode": "upscale",
-            "image": rp.image_to_b64(image),
+            "image": rp.image_to_b64(image, mask),  # RGBA when a mask is wired, else RGB
             "image_mime": "image/png",
             "model": model,
             "resolution": int(resolution),
@@ -119,11 +122,12 @@ class RanomanySeedVR2Upscale:
         }
 
         log.info(f"[SeedVR2Upscale] model={model} resolution={resolution} "
-                 f"max_resolution={max_resolution} seed={seed} cc={color_correction}")
+                 f"max_resolution={max_resolution} seed={seed} cc={color_correction} "
+                 f"alpha={mask is not None}")
         output = rp.run(endpoint, key, payload, max_wait, poll_interval,
                         label="SeedVR2Upscale")
-        result, out_seed = rp.result_to_image(output, label="SeedVR2Upscale")
-        return (result, out_seed, key_status)
+        result, out_mask, out_seed = rp.result_to_image(output, label="SeedVR2Upscale")
+        return (result, out_mask, out_seed, key_status)
 
 
 # ---------------------------------------------------------------------------

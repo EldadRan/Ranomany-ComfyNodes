@@ -134,10 +134,12 @@ seedvr_runpod:
       RanomanySeedVR2Upscale → POST /v2/<endpoint>/run {mode:"upscale", image, model,
         resolution, max_resolution, seed, color_correction}
 
-    Outputs (image IMAGE, seed, key_status). Category: Ranomany/RunPod.
+    Optional MASK input carries alpha (sent as RGBA); SeedVR2 upscales it with edge
+    guidance and returns it on the mask output. Outputs (image IMAGE, mask MASK, seed,
+    key_status). Category: Ranomany/RunPod.
     Requires RUNPOD_API_KEY and RUNPOD_ENDPOINT_ID env vars / .env (or the node inputs).
   deps:    []
-  version: "0.1.0"
+  version: "0.2.0"
 
 qwen_layered:
   description: |

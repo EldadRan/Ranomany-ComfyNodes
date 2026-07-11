@@ -132,14 +132,21 @@ def _run_inference(in_path: str, out_path: str, params: dict, debug: bool) -> No
         raise RuntimeError(f"pipeline produced no output ({frames} frames written)")
 
 
+def _has_alpha(img) -> bool:
+    return img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info)
+
+
 def _decode_to_png(b64: str, path: str) -> None:
-    """b64 (data-URI prefix tolerated) → normalized RGB PNG on disk."""
+    """b64 (data-URI prefix tolerated) → PNG on disk, preserving alpha when present.
+
+    RGBA is kept so SeedVR2's edge-guided alpha upscaling runs; RGB stays RGB.
+    """
     from PIL import Image  # local import: keeps module importable in slim test envs
     if "," in b64 and b64.lstrip().startswith("data:"):
         b64 = b64.split(",", 1)[1]
     raw = base64.b64decode(b64, validate=True)
     img = Image.open(io.BytesIO(raw))
-    img.convert("RGB").save(path, format="PNG")
+    img.convert("RGBA" if _has_alpha(img) else "RGB").save(path, format="PNG")
 
 
 def _png_response(path: str) -> dict:
@@ -148,11 +155,13 @@ def _png_response(path: str) -> dict:
         raw = f.read()
     with Image.open(io.BytesIO(raw)) as img:
         width, height = img.size
+        has_alpha = _has_alpha(img)
     return {
         "image": base64.b64encode(raw).decode("utf-8"),
         "mime_type": "image/png",
         "width": width,
         "height": height,
+        "has_alpha": has_alpha,
     }
 
 

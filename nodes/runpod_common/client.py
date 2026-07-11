@@ -104,12 +104,27 @@ def resolve_config(api_key: str = "", endpoint_id: str = "") -> tuple:
 # IMAGE tensor ↔ base64
 # ---------------------------------------------------------------------------
 
-def image_to_b64(tensor: torch.Tensor) -> str:
-    """A single H×W×3 (or 1×H×W×3) IMAGE tensor → base64-encoded PNG (no data-URI prefix)."""
+def image_to_b64(tensor: torch.Tensor, mask=None) -> str:
+    """A single IMAGE tensor (+ optional MASK) → base64-encoded PNG (no data-URI prefix).
+
+    With a mask, encodes RGBA: alpha = 1 - mask, following ComfyUI's MASK convention
+    where 1 = transparent (matches Load Image / fal_common). The mask is resized to the
+    image if their dimensions differ. Without a mask, encodes plain RGB (as before).
+    """
     t = tensor[0] if tensor.ndim == 4 else tensor
-    arr = (t.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+    rgb = (t.cpu().numpy() * 255).clip(0, 255).astype(np.uint8)
+    if mask is None:
+        img = Image.fromarray(rgb)
+    else:
+        m = mask[0] if mask.ndim == 3 else mask
+        m = m.cpu().numpy().astype(np.float32)
+        if m.shape[:2] != rgb.shape[:2]:  # e.g. a mask authored at a different size
+            m = (np.array(Image.fromarray((m * 255).clip(0, 255).astype(np.uint8))
+                          .resize((rgb.shape[1], rgb.shape[0]))).astype(np.float32) / 255.0)
+        alpha = ((1.0 - m) * 255).clip(0, 255).astype(np.uint8)  # opacity
+        img = Image.fromarray(np.dstack([rgb, alpha]), mode="RGBA")
     buf = io.BytesIO()
-    Image.fromarray(arr).save(buf, format="PNG")
+    img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
@@ -120,6 +135,21 @@ def image_from_b64(b64: str) -> torch.Tensor:
     raw = base64.b64decode(b64)
     arr = np.array(Image.open(io.BytesIO(raw)).convert("RGB")).astype(np.float32) / 255.0
     return torch.from_numpy(arr)
+
+
+def image_from_b64_rgba(b64: str) -> tuple:
+    """Base64 image → (H×W×3 IMAGE tensor, H×W MASK tensor).
+
+    MASK = 1 - alpha (1 = transparent, ComfyUI convention). Images without an alpha
+    channel yield an all-zero (fully opaque) mask.
+    """
+    if "," in b64 and b64.lstrip().startswith("data:"):
+        b64 = b64.split(",", 1)[1]
+    raw = base64.b64decode(b64)
+    rgba = np.array(Image.open(io.BytesIO(raw)).convert("RGBA")).astype(np.float32) / 255.0
+    rgb = torch.from_numpy(rgba[:, :, :3])
+    mask = torch.from_numpy(1.0 - rgba[:, :, 3])
+    return rgb, mask
 
 
 # ---------------------------------------------------------------------------
@@ -214,11 +244,15 @@ def run(endpoint_id: str, key: str, payload: dict, max_wait: int, poll_interval:
 
 
 # ---------------------------------------------------------------------------
-# Output envelope → IMAGE
+# Output envelope → IMAGE + MASK
 # ---------------------------------------------------------------------------
 
 def result_to_image(output: dict, label: str = "runpod") -> tuple:
-    """Worker envelope → (1×H×W×3 IMAGE tensor, seed). Raises on the error envelope."""
+    """Worker envelope → (1×H×W×3 IMAGE, 1×H×W MASK, seed). Raises on the error envelope.
+
+    The mask carries the upscaled alpha (1 = transparent); a result without alpha yields
+    an all-zero, fully-opaque mask.
+    """
     if not isinstance(output, dict):
         raise RuntimeError(f"[{label}] unexpected worker output: {output!r}")
     status = output.get("status")
@@ -231,9 +265,9 @@ def result_to_image(output: dict, label: str = "runpod") -> tuple:
     b64 = result.get("image")
     if not b64:
         raise RuntimeError(f"[{label}] no result.image in worker output: {list(result)}")
-    tensor = image_from_b64(b64).unsqueeze(0)
+    rgb, mask = image_from_b64_rgba(b64)
     try:
         seed = int(result.get("seed", -1))
     except (TypeError, ValueError):
         seed = -1
-    return tensor, seed
+    return rgb.unsqueeze(0), mask.unsqueeze(0), seed
