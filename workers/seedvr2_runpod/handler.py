@@ -57,7 +57,9 @@ _DIT_MODELS = {
     "seedvr2_ema_7b_sharp_fp16.safetensors",
     "seedvr2_ema_7b_sharp-Q4_K_M.gguf",
 }
-_DEFAULT_MODEL = "seedvr2_ema_3b_fp8_e4m3fn.safetensors"
+# The image bakes in 7B fp16 (see bake_weights.py); make it the default so a
+# model-less request uses the baked weights instead of triggering a runtime download.
+_DEFAULT_MODEL = "seedvr2_ema_7b_fp16.safetensors"
 _COLOR_CORRECTIONS = {"lab", "wavelet", "wavelet_adaptive", "hsv", "adain", "none"}
 
 # Warm-worker state: the vendored CLI module, its runner cache, and which model

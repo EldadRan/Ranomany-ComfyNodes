@@ -31,19 +31,22 @@ log = logging.getLogger("SeedVR2RunPod")
 CATEGORY = "Ranomany/RunPod"
 
 # DiT checkpoints known to the worker's pinned SeedVR2 build (src/utils/model_registry.py).
+# The worker's image bakes in 7B fp16 (the default below); it runs with no download.
+# Any other choice downloads on the worker's first use of it — slow, and without a
+# network volume it re-downloads on each cold start.
 _DIT_MODELS = [
-    "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
+    "seedvr2_ema_7b_fp16.safetensors",
+    "seedvr2_ema_7b_sharp_fp16.safetensors",
+    "seedvr2_ema_7b_fp8_e4m3fn_mixed_block35_fp16.safetensors",
+    "seedvr2_ema_7b_sharp_fp8_e4m3fn_mixed_block35_fp16.safetensors",
+    "seedvr2_ema_7b-Q4_K_M.gguf",
+    "seedvr2_ema_7b_sharp-Q4_K_M.gguf",
     "seedvr2_ema_3b_fp16.safetensors",
+    "seedvr2_ema_3b_fp8_e4m3fn.safetensors",
     "seedvr2_ema_3b-Q8_0.gguf",
     "seedvr2_ema_3b-Q4_K_M.gguf",
-    "seedvr2_ema_7b_fp8_e4m3fn_mixed_block35_fp16.safetensors",
-    "seedvr2_ema_7b_fp16.safetensors",
-    "seedvr2_ema_7b-Q4_K_M.gguf",
-    "seedvr2_ema_7b_sharp_fp8_e4m3fn_mixed_block35_fp16.safetensors",
-    "seedvr2_ema_7b_sharp_fp16.safetensors",
-    "seedvr2_ema_7b_sharp-Q4_K_M.gguf",
 ]
-_DEFAULT_MODEL = _DIT_MODELS[0]
+_DEFAULT_MODEL = _DIT_MODELS[0]  # seedvr2_ema_7b_fp16 — baked into the worker image
 
 _COLOR_CORRECTIONS = ["wavelet", "lab", "wavelet_adaptive", "hsv", "adain", "none"]
 
@@ -64,7 +67,8 @@ class RanomanySeedVR2Upscale:
             },
             "optional": {
                 "model": (_DIT_MODELS, {"default": _DEFAULT_MODEL,
-                                        "tooltip": "SeedVR2 DiT checkpoint the worker should use."}),
+                                        "tooltip": "SeedVR2 DiT checkpoint. The default (7B fp16) is baked "
+                                                   "into the worker; other choices download on first use."}),
                 "resolution": ("INT", {"default": 1080, "min": 256, "max": 7680, "step": 8,
                                        "tooltip": "Target short-side resolution of the result."}),
                 "max_resolution": ("INT", {"default": 0, "min": 0, "max": 15360, "step": 8,

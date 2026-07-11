@@ -11,6 +11,11 @@ in-process (`parse_arguments` / `download_weight` / `process_single_file`) and k
 DiT + VAE loaded across warm jobs via the CLI's own `runner_cache` (reloaded only when a
 job requests a different model).
 
+**Weights are baked into the image** (7B fp16 DiT + shared VAE, via `bake_weights.py`),
+so the worker needs **no network volume** and runs in any datacenter with GPU
+availability. Other models in the node's dropdown still work — they download at runtime
+on first use (slow, and without a volume they re-download on each cold start).
+
 ## Contract
 
 `POST https://api.runpod.ai/v2/<ENDPOINT_ID>/run` with `Authorization: Bearer <RUNPOD_API_KEY>`:
@@ -58,18 +63,19 @@ extra shared secret.
    docker push ghcr.io/<owner>/seedvr2-runpod-worker:latest
    ```
 
-2. **Create a network volume** (RunPod → Storage), e.g. 30 GB, in the region you'll run in.
-   Weights auto-download from HuggingFace (`numz/SeedVR2_comfyUI`) on the first job and
-   land on the volume, so later cold starts skip the multi-GB download.
+2. **No network volume needed** — the 7B fp16 weights ship inside the image. (RunPod
+   volumes exist in only a few DCs, which often don't overlap with GPU availability;
+   baking sidesteps that entirely. To go back to a volume, drop the bake step from the
+   Dockerfile and attach one at `/runpod-volume` — `_model_dir()` still supports it.)
 
 3. **Create the serverless endpoint** (RunPod → Serverless → New Endpoint):
    - Container image: `ghcr.io/<owner>/seedvr2-runpod-worker:latest` (make the GHCR
      package public, or add registry credentials).
-   - Attach the network volume (mounts at `/runpod-volume` — the handler picks
-     `/runpod-volume/models/SEEDVR2` automatically; override with `SEEDVR2_MODEL_DIR`).
-   - GPU: 24 GB class (RTX 4090 / L4 / A5000) comfortably runs the default 3B fp8 model
-     (~12–16 GB VRAM at 1080p); pick 48 GB (L40S/A6000) for 7B fp16 or very large outputs.
-   - Execution timeout: ≥ 600 s (first-ever job also downloads weights).
+   - GPU: 32 GB (RTX PRO 4500 / 5090) runs the baked 7B fp16 at ~1080–1440p thanks to the
+     handler's CPU offload; 48 GB (L40S / A40 / A6000) gives headroom for larger outputs.
+     Multi-select several types so a cold start always finds a free GPU.
+   - Execution timeout: ≥ 300 s is plenty (weights are already in the image; no download).
+     Keep ≥ 600 s only if you'll also use non-baked models that download at runtime.
 
 4. **Point the ComfyUI node at it** — in the ComfyUI root `.env` (or environment):
 
@@ -96,7 +102,11 @@ curl -s -X POST "https://api.runpod.ai/v2/$RUNPOD_ENDPOINT_ID/run" \
 
 ## Env vars
 
-| var                 | default                                             | purpose                        |
-|---------------------|-----------------------------------------------------|--------------------------------|
-| `SEEDVR2_DIR`       | `/app/SeedVR2`                                      | vendored repo location         |
-| `SEEDVR2_MODEL_DIR` | `/runpod-volume/models/SEEDVR2` (if volume mounted) | where weights download/persist |
+| var                 | default (set in Dockerfile) | purpose                                   |
+|---------------------|-----------------------------|-------------------------------------------|
+| `SEEDVR2_DIR`       | `/app/SeedVR2`              | vendored repo location                    |
+| `SEEDVR2_MODEL_DIR` | `/app/models/SEEDVR2`      | baked-weights dir the runtime reads first |
+
+To use a network volume instead of baked weights, unset `SEEDVR2_MODEL_DIR` (or point it
+at the mount) and attach the volume — `_model_dir()` falls back to
+`/runpod-volume/models/SEEDVR2` when the mount exists.
