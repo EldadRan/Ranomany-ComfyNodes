@@ -141,6 +141,18 @@ seedvr_runpod:
   deps:    []
   version: "0.2.0"
 
+image_compare_rgba:
+  description: |
+    Compare Images (RGBA) — the native ComfyUI ImageCompare node (Compare Images,
+    before/after slider) extended to preserve alpha. Reuses PreviewImage's save
+    path unchanged; adds an optional MASK per side (mask_a / mask_b) that is folded
+    into the image as an alpha channel so transparency shows in the slider (1 =
+    transparent). image_a / image_b / mask_a / mask_b all optional; no data outputs
+    (OUTPUT_NODE). Ships web/image_compare_rgba.js, which re-binds the native
+    `imagecompare` slider widget to this class. Category: Ranomany/image.
+  deps:    []
+  version: "0.1.0"
+
 qwen_layered:
   description: |
     Qwen Image Layered on fal.ai — one node over the fal queue REST API (shares

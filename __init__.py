@@ -52,6 +52,7 @@ _NODE_FILES = [
     ("nodes/wan_fal_image/node.py",      "wan_fal_image"),
     ("nodes/qwen_layered/node.py",       "qwen_layered"),
     ("nodes/seedvr_runpod/node.py",      "seedvr_runpod"),
+    ("nodes/image_compare_rgba/node.py", "image_compare_rgba"),
 ]
 
 for _rel, _label in _NODE_FILES:
