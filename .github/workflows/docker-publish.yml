@@ -25,6 +25,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # No GHA cache: the ~17 GB weight layer exceeds GitHub's 10 GB/repo cache
+      # budget, so exporting it just wastes minutes and gets evicted. Rebuilds are
+      # infrequent (only on worker changes). If rebuild speed ever matters, switch
+      # to registry cache (type=registry, stored in GHCR) rather than type=gha.
       - uses: docker/build-push-action@v6
         with:
           context: workers/seedvr2_runpod
@@ -32,5 +36,3 @@ jobs:
           tags: |
             ghcr.io/eldadran/seedvr2-runpod-worker:latest
             ghcr.io/eldadran/seedvr2-runpod-worker:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
