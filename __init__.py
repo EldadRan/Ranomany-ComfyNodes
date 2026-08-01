@@ -50,6 +50,7 @@ _NODE_FILES = [
     ("nodes/multi_concat/node.py",       "multi_concat"),
     ("nodes/wan_fal/node.py",            "wan_fal"),
     ("nodes/wan_fal_image/node.py",      "wan_fal_image"),
+    ("nodes/ltx_fal/node.py",            "ltx_fal"),
     ("nodes/qwen_layered/node.py",       "qwen_layered"),
     ("nodes/seedvr_runpod/node.py",      "seedvr_runpod"),
     ("nodes/image_compare_rgba/node.py", "image_compare_rgba"),

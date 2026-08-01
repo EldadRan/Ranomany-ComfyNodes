@@ -124,6 +124,25 @@ wan_fal_image:
   deps:    []
   version: "0.1.0"
 
+ltx_fal:
+  description: |
+    LTX-2.3 image-to-video on fal.ai — one node over the fal queue REST API (shares
+    the fal_common client). A `model` selector picks the endpoint:
+
+      LtxFalImageToVideo → fal-ai/ltx-2.3/image-to-video       (model: quality, 6/8/10s)
+                         → fal-ai/ltx-2.3/image-to-video/fast  (model: fast, 6–20s)
+
+    Start IMAGE + prompt, optional end IMAGE (start→end transition), duration,
+    resolution (1080p/1440p/2160p), aspect_ratio (auto/16:9/9:16), fps (24/25/48/50),
+    generate_audio. Durations over 10s (fast only) require fps=25 and 1080p — the node
+    validates this before submitting.
+
+    Outputs (VIDEO, key_status) — wire VIDEO to the Save Video node. The endpoints take
+    no seed and return none, so there is no seed output.
+    Category: Ranomany/fal.ai. Requires FAL_KEY env var (or pass it via the api_key input).
+  deps:    []
+  version: "0.1.0"
+
 seedvr_runpod:
   description: |
     SeedVR2 Upscale (RunPod) — diffusion image upscaling (numz/ComfyUI-SeedVR2_VideoUpscaler)
