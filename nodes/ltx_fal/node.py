@@ -71,14 +71,16 @@ class LtxFalImageToVideo:
                 }),
                 "end_image": ("IMAGE", {
                     "tooltip": "Optional end frame — generates a transition between start and end."}),
-                "duration": ([6, 8, 10, 12, 14, 16, 18, 20], {
-                    "default": 6,
+                # Combo values are strings — ComfyUI's frontend round-trips widget values as
+                # strings, so int-valued lists fail validation. Cast in generate().
+                "duration": (["6", "8", "10", "12", "14", "16", "18", "20"], {
+                    "default": "6",
                     "tooltip": "Seconds. quality supports 6/8/10; fast supports 6–20, "
                                "but >10 requires fps=25 and resolution=1080p."}),
                 "resolution": (["1080p", "1440p", "2160p"], {"default": "1080p"}),
                 "aspect_ratio": (["auto", "16:9", "9:16"], {
                     "default": "auto", "tooltip": "'auto' follows the input image's ratio."}),
-                "fps": ([24, 25, 48, 50], {"default": 25}),
+                "fps": (["24", "25", "48", "50"], {"default": "25"}),
                 "generate_audio": (["true", "false"], {"default": "true"}),
                 "api_key": ("STRING", {
                     "default": "", "password": True,
@@ -95,8 +97,8 @@ class LtxFalImageToVideo:
     CATEGORY     = CATEGORY
     OUTPUT_NODE  = False
 
-    def generate(self, image, prompt, model="quality", end_image=None, duration=6,
-                 resolution="1080p", aspect_ratio="auto", fps=25, generate_audio="true",
+    def generate(self, image, prompt, model="quality", end_image=None, duration="6",
+                 resolution="1080p", aspect_ratio="auto", fps="25", generate_audio="true",
                  api_key="", max_wait=600, poll_interval=15):
         if not prompt.strip():
             raise ValueError("LtxFalImageToVideo: prompt is required.")
