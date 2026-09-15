@@ -102,9 +102,11 @@ class KlingFalImageToVideo:
                 "negative_prompt": ("STRING", {
                     "default": "blur, distort, and low quality", "multiline": False,
                     "tooltip": "Content to avoid (max 2500 chars). Blank = fal's default."}),
-                "cfg_scale": ("FLOAT", {
-                    "default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05,
-                    "tooltip": "How closely the model sticks to the prompt."}),
+                # Shown as a percent; the endpoint's cfg_scale is 0–1, converted in generate().
+                "cfg_scale_percent": ("INT", {
+                    "default": 50, "min": 0, "max": 100, "step": 5,
+                    "tooltip": "CFG scale in percent (fal's 0–1 × 100) — how closely the "
+                               "model sticks to the prompt."}),
                 "api_key": ("STRING", {
                     "default": "", "password": True,
                     "tooltip": "Leave blank to use FAL_KEY env var or .env file.",
@@ -122,7 +124,7 @@ class KlingFalImageToVideo:
 
     def generate(self, image, prompt, tier="pro", end_image=None, duration="5",
                  generate_audio="true", negative_prompt="blur, distort, and low quality",
-                 cfg_scale=0.5, api_key="", max_wait=900, poll_interval=15):
+                 cfg_scale_percent=50, api_key="", max_wait=900, poll_interval=15):
         prompt = prompt.strip()
         negative_prompt = negative_prompt.strip()
         if not prompt:
@@ -142,7 +144,7 @@ class KlingFalImageToVideo:
             "start_image_url": fal.image_to_data_uri(image),
             "duration": str(duration),
             "generate_audio": generate_audio == "true",
-            "cfg_scale": float(cfg_scale),
+            "cfg_scale": int(cfg_scale_percent) / 100,
         }
         if negative_prompt:
             payload["negative_prompt"] = negative_prompt
@@ -150,7 +152,7 @@ class KlingFalImageToVideo:
             payload["end_image_url"] = fal.image_to_data_uri(end_image)
 
         log.info(f"[KlingFalImageToVideo] tier={tier} duration={duration}s audio={generate_audio} "
-                 f"cfg={cfg_scale} end_image={end_image is not None}")
+                 f"cfg={cfg_scale_percent}% end_image={end_image is not None}")
         result = fal.run(_MODELS[tier], payload, key, max_wait, poll_interval,
                          label="KlingFalImageToVideo")
         video, _seed = fal.result_to_video(result)

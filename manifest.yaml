@@ -153,7 +153,7 @@ kling_fal:
                            → fal-ai/kling-video/v3/4k/image-to-video        (tier: 4k)
 
     Start IMAGE + prompt (max 2500 chars), optional end IMAGE (start→end transition),
-    duration 3–15s, generate_audio, negative_prompt, cfg_scale (0–1). Both frames must be
+    duration 3–15s, generate_audio, negative_prompt, cfg_scale_percent (0–100%). Both frames must be
     ≥300×300px with aspect ratio 0.40–2.50 — the node validates this before submitting.
     Multi-shot (multi_prompt) and elements are not exposed.
 
