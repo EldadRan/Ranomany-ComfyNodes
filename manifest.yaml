@@ -145,17 +145,20 @@ ltx_fal:
 
 kling_fal:
   description: |
-    Kling O1 (standard) image-to-video on fal.ai — one node over the fal queue REST API
-    (shares the fal_common client).
+    Kling 3 image-to-video on fal.ai — one node over the fal queue REST API (shares
+    the fal_common client). A `tier` selector picks the endpoint (identical inputs):
 
-      KlingFalImageToVideo → fal-ai/kling-video/o1/standard/image-to-video
+      KlingFalImageToVideo → fal-ai/kling-video/v3/standard/image-to-video  (tier: standard)
+                           → fal-ai/kling-video/v3/pro/image-to-video       (tier: pro)
+                           → fal-ai/kling-video/v3/4k/image-to-video        (tier: 4k)
 
-    Start IMAGE + prompt (max 2500 chars; @Image1 = start frame, @Image2 = end frame),
-    optional end IMAGE (start→end transition), duration 3–10s. Both frames must be
+    Start IMAGE + prompt (max 2500 chars), optional end IMAGE (start→end transition),
+    duration 3–15s, generate_audio, negative_prompt, cfg_scale (0–1). Both frames must be
     ≥300×300px with aspect ratio 0.40–2.50 — the node validates this before submitting.
+    Multi-shot (multi_prompt) and elements are not exposed.
 
-    Outputs (VIDEO, key_status) — wire VIDEO to the Save Video node. The endpoint takes
-    no seed and returns none, so there is no seed output.
+    Outputs (VIDEO, key_status) — wire VIDEO to the Save Video node. The endpoints take
+    no seed and return none, so there is no seed output.
     Category: Ranomany/fal.ai. Requires FAL_KEY env var (or pass it via the api_key input).
   deps:    []
   version: "0.1.0"
