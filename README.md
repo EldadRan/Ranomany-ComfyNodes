@@ -19,7 +19,7 @@ Ranomany-ComfyNodes/
 └── nodes/
     ├── api_key/                 # Generic API key resolver (any provider)
     ├── gemini_image/            # Image generation / editing via Gemini
-    ├── gemini_veo/              # Video generation via Veo + Save Video node
+    ├── gemini_veo/              # Video generation via Gemini Omni + Save Video node
     ├── openai_image/            # Image generation / editing via OpenAI gpt-image-2
     ├── save_image_no_meta/      # Save PNG without workflow metadata
     ├── wan_image/               # Image generation / editing via Alibaba Wan 2.7
@@ -67,7 +67,7 @@ cp -r nodes/wan_video          /path/to/ComfyUI/custom_nodes/
 Install dependencies:
 
 ```bash
-pip install google-genai>=1.0.0   # required by gemini_image and gemini_veo
+pip install google-genai>=1.73.0  # required by gemini_image and gemini_veo
 pip install openai>=1.0.0          # required by openai_image
 pip install mutagen>=1.47.0        # optional — enables MP4 metadata embedding in Save Video
 # wan_image and wan_video use stdlib only — no extra dependencies
@@ -317,26 +317,26 @@ Editing / composition variant of the OpenAI node with **one mandatory image plus
 
 ### `gemini_veo` — Gemini Veo Generate
 
-Generate videos using Google's Veo model. The node blocks until generation completes (typically 1–3 minutes), then outputs a `VIDEO` value that you wire to a **Save Video** node.
+Generate videos using Google's Gemini Omni Flash model (`gemini-omni-1.1-flash`) via the Interactions API. This replaces Veo 3.1 Preview, which the Gemini API shuts down on 2026-10-22. It's a drop-in replacement: same node, name and widgets — only the `model` dropdown changed. The node blocks until generation completes, then outputs a `VIDEO` value that you wire to a **Save Video** node.
 
 **Category:** `Ranomany/Gemini`
-**Dependencies:** `google-genai>=1.0.0`
+**Dependencies:** `google-genai>=1.73.0`
 
 #### Inputs
 
 | Input | Type | Default | Notes |
 |---|---|---|---|
-| `prompt` | STRING | — | Describe the video. Can be blank if you supply a first frame. |
-| `model` | dropdown | `veo-3.1-generate-preview` | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview` |
+| `prompt` | STRING | — | Describe the video, including any sound/dialogue (Omni has no audio setting). Can be blank if you supply a first frame. |
+| `model` | dropdown | `gemini-omni-1.1-flash` | Only model available. Workflows saved with a `veo-3.1-*` model still run — they're routed to Omni. |
 | `aspect_ratio` | dropdown | `16:9` | `16:9` or `9:16` |
-| `resolution` | dropdown | `1080p` | `720p`, `1080p`, or `4k` (Lite model does not support `4k`) |
-| `duration_seconds` | INT | `8` | `4` or `8` |
+| `resolution` | dropdown | `1080p` | `720p`, `1080p`, `4k`, `360p` (1080p and 4k are upscaled) |
+| `duration_seconds` | INT | `8` | Kept for compatibility — ignored, Omni picks the length |
 | `first_frame` | IMAGE | *(optional)* | Anchor the first frame of the video to this image |
-| `last_frame` | IMAGE | *(optional)* | Anchor the last frame of the video to this image. **Only supported by `veo-3.1-generate-preview`** — raises an error on fast/lite models. |
-| `negative_prompt` | STRING | *(optional)* | Things to avoid in the output (e.g. `blur, low quality, distorted faces`) |
+| `last_frame` | IMAGE | *(optional)* | Anchor the last frame (needs `first_frame` too) |
+| `negative_prompt` | STRING | *(optional)* | Omni has no negative-prompt parameter — appended to the prompt as `Avoid: …` |
 | `api_key` | STRING (masked) | *(optional)* | Wire from `API Key` node, or leave blank to use env var / `.env` file |
-| `max_wait` | INT | `600` | Seconds before the node gives up (60–1800) |
-| `poll_interval` | INT | `10` | Seconds between status polls (5–60) |
+| `max_wait` | INT | `1200` | Seconds before the node gives up (60–3600) |
+| `poll_interval` | INT | `10` | Seconds between checks while the output file is prepared (5–60) |
 
 #### Outputs
 
@@ -348,11 +348,10 @@ Generate videos using Google's Veo model. The node blocks until generation compl
 
 ```
 [API Key] key_name=GEMINI_API_KEY ──api_key──► [Gemini Veo Generate] ──video──► [Save Video]
-                    prompt           = "A drone slowly flies over a misty mountain forest at dawn, cinematic"
-                    model            = veo-3.1-generate-preview
-                    aspect_ratio     = 16:9
-                    resolution       = 1080p
-                    duration_seconds = 8
+                    prompt       = "A drone slowly flies over a misty mountain forest at dawn, cinematic, birdsong"
+                    model        = gemini-omni-1.1-flash
+                    aspect_ratio = 16:9
+                    resolution   = 1080p
 ```
 
 **Image-to-video:**
@@ -374,7 +373,7 @@ Writes a VIDEO output from **Gemini Veo Generate** (or any node that produces a 
 |---|---|---|
 | `video` | VIDEO | Wire from `Gemini Veo Generate` |
 | `filename_prefix` | STRING | Prefix for the saved MP4 filename (default: `video`) |
-| `extra_metadata` | STRING | Optional JSON object — each key/value is written as a custom MP4 metadata atom. Example: `{"prompt": "misty forest", "model": "veo-3.1-generate-preview"}` |
+| `extra_metadata` | STRING | Optional JSON object — each key/value is written as a custom MP4 metadata atom. Example: `{"prompt": "misty forest", "model": "gemini-omni-1.1-flash"}` |
 
 | Output | Type | Description |
 |---|---|---|

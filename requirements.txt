@@ -5,7 +5,7 @@
 #   pip install -r requirements.txt
 #
 # The per-node nodes/<name>/requirements.txt files just `-r` this file.
-google-genai>=1.0.0   # gemini_image, gemini_veo
+google-genai>=1.73.0  # gemini_image, gemini_veo (Interactions API)
 openai>=1.0.0         # openai_image
 mutagen>=1.47.0       # gemini_veo (video/audio metadata)
 av>=11.0              # video_info (PyAV; ffmpeg-based video toolset)
