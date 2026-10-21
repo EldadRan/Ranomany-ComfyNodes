@@ -221,7 +221,8 @@ class GeminiVeo:
                 "delivery": "uri",
             },
             "background": False,
-            "store": False,
+            # The API requires store=True for URI delivery.
+            "store": True,
             "timeout": float(max_wait),
         }
         if first_frame is not None:
