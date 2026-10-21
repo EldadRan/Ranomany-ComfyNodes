@@ -274,7 +274,9 @@ class GeminiVeo:
     @staticmethod
     def _download(client, uri: str, remaining: float, poll_interval: int) -> bytes:
         """Wait for the output file to become ACTIVE, then download it."""
-        name = f"files/{uri.rstrip('/').split('/')[-1]}"
+        from google.genai import _transformers
+        # The URI looks like .../files/<id>:download?alt=media — let the SDK parse it.
+        name = f"files/{_transformers.t_file_name(uri)}"
         deadline = time.monotonic() + max(remaining, 30)
         while True:
             state = getattr(client.files.get(name=name).state, "name", "")
