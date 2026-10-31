@@ -101,10 +101,12 @@ def _tensor_to_png_bytes(tensor: torch.Tensor) -> bytes:
 
 
 def _find_video_output(interaction):
-    """Return the first video content block of an interaction, or None.
+    """Return the final video content block of an interaction, or None.
 
     Newer SDKs expose `output_video`; older ones only have `outputs`, and the
-    REST shape puts it under `steps`.
+    REST shape puts it under `steps`. At 1080p/4k the response can hold the
+    720p base render before the upscaled one, so take the LAST video block —
+    the same rule the SDK's own `output_video` uses.
     """
     video = getattr(interaction, "output_video", None)
     if video is not None:
@@ -112,10 +114,10 @@ def _find_video_output(interaction):
     blocks = list(getattr(interaction, "outputs", None) or [])
     for step in getattr(interaction, "steps", None) or []:
         blocks.extend(getattr(step, "outputs", None) or getattr(step, "content", None) or [])
-    for block in blocks:
-        if getattr(block, "type", None) == "video":
-            return block
-    return None
+    videos = [b for b in blocks if getattr(b, "type", None) == "video"]
+    if len(videos) > 1:
+        log.info(f"[GeminiVeo] {len(videos)} video blocks in response — using the last")
+    return videos[-1] if videos else None
 
 
 # VIDEO is a simple dict type carrying a temp filepath — compatible with
