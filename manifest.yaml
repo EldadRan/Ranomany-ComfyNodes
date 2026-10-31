@@ -56,7 +56,7 @@ gemini_veo:
     Also ships the Save Video node (Category: Ranomany) in the same file.
     Requires GEMINI_API_KEY env var (or pass it via the api_key input).
     Generation takes 1–3 minutes; the node blocks until complete.
-  deps:    [google-genai>=1.73.0]
+  deps:    [google-genai>=2.19.0]
   version: "0.3.0"
 
 wan_image:

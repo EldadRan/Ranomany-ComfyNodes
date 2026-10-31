@@ -80,8 +80,26 @@ def _resolve_key(api_key_input: str) -> tuple:
     return "", "❌ no key found"
 
 
+def _check_sdk_version():
+    """google-genai 2.0–2.18 silently drop `resolution` and `aspect_ratio` from
+    a video response_format, so every run comes back 720p 16:9. 1.73+ (dict
+    passed through untouched) and 2.19+ (typed field) both send them."""
+    from google import genai
+    try:
+        major, minor = (int(p) for p in genai.__version__.split(".")[:2])
+    except ValueError:
+        return
+    if major == 2 and minor < 19:
+        raise RuntimeError(
+            f"GeminiVeo: google-genai {genai.__version__} drops the resolution and "
+            "aspect_ratio settings (you'd get 720p 16:9 regardless). Upgrade: "
+            "pip install -U 'google-genai>=2.19.0'"
+        )
+
+
 def _get_client(api_key: str):
     from google import genai
+    _check_sdk_version()
     key, status = _resolve_key(api_key)
     if not key:
         raise EnvironmentError(

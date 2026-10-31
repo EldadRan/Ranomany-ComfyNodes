@@ -67,7 +67,7 @@ cp -r nodes/wan_video          /path/to/ComfyUI/custom_nodes/
 Install dependencies:
 
 ```bash
-pip install google-genai>=1.73.0  # required by gemini_image and gemini_veo
+pip install google-genai>=2.19.0  # required by gemini_image and gemini_veo
 pip install openai>=1.0.0          # required by openai_image
 pip install mutagen>=1.47.0        # optional — enables MP4 metadata embedding in Save Video
 # wan_image and wan_video use stdlib only — no extra dependencies
@@ -320,7 +320,7 @@ Editing / composition variant of the OpenAI node with **one mandatory image plus
 Generate videos using Google's Gemini Omni Flash model (`gemini-omni-1.1-flash`) via the Interactions API. This replaces Veo 3.1 Preview, which the Gemini API shuts down on 2026-10-22. It's a drop-in replacement: same node, name and widgets — only the `model` dropdown changed. The node blocks until generation completes, then outputs a `VIDEO` value that you wire to a **Save Video** node.
 
 **Category:** `Ranomany/Gemini`
-**Dependencies:** `google-genai>=1.73.0`
+**Dependencies:** `google-genai>=2.19.0` (2.0–2.18 drop the resolution and aspect ratio settings)
 
 #### Inputs
 
